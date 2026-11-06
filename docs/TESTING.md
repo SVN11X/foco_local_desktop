@@ -35,3 +35,7 @@ Anota **probado/no probado/falla** por cada navegador, build y versión de Windo
 ## Privacidad del informe
 
 Utiliza dominios de prueba públicos (`example.com`) y no pegues `%APPDATA%` ni capturas con historial personal. No adjuntes tokens, contraseñas, cookies o datos de navegación privada.
+
+## Prueba manual: monitor flotante sin robar foco (v0.2.1)
+
+Configura un límite de dos minutos para YouTube, pulsa **Probar con monitor flotante** y deja Edge o Chrome como ventana activa. Verifica que el monitor muestre el dominio y los segundos acumulados y que aparezca la cubierta al agotarse el tiempo. Si el monitor indica **No se reconoce la barra de direcciones (UIA)**, captura el mensaje y el nombre del navegador. Repite con otra ventana para confirmar que no se contabiliza actividad en segundo plano ni se intervienen los procesos automatizados. Consulta [GUIA_PRUEBA_WINDOWS.md](GUIA_PRUEBA_WINDOWS.md).

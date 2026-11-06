@@ -210,7 +210,9 @@ func runScanner(app *App) {
 		}
 		hwnd := fg()
 		sample := Sample{Working: s != nil, Reason: "Fuera del navegador"}
-		if hwnd != 0 && hwnd != app.main && hwnd != app.overlay {
+		if hwnd == app.main {
+			sample.Reason = "Hub en primer plano: el navegador no se está contando"
+		} else if hwnd != 0 && hwnd != app.overlay && hwnd != app.monitor {
 			pid := windowPID(hwnd)
 			exe := foregroundExe(pid)
 			if browserName(exe) != "" {

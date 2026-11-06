@@ -147,6 +147,8 @@ const (
 	lbsNotify          = 0x1
 	swHide             = 0
 	swShow             = 5
+	swShowNA           = 8
+	swMinimized        = 2
 	swRestore          = 9
 	exToolWindow       = 0x00000080
 	exTopMost          = 0x00000008

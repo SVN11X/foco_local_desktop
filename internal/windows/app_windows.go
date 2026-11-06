@@ -23,25 +23,26 @@ type Sample struct {
 	At                    time.Time
 }
 type App struct {
-	store                                                                                                *limit.Store
-	main, overlay                                                                                        uintptr
-	fieldDomain, fieldMinutes, list, info, active, btnPause, chkAuto, chkSafe, overlayTitle, overlayNote uintptr
-	font, bigFont                                                                                        uintptr
-	done                                                                                                 chan struct{}
-	scanDelay                                                                                            <-chan time.Time
-	ticker                                                                                               *time.Ticker
-	mu                                                                                                   sync.Mutex
-	sample                                                                                               Sample
-	lastBrowserPID                                                                                       uint32
-	lastBrowserName                                                                                      string
-	lastBrowserHost                                                                                      string
-	lastBrowserAt                                                                                        time.Time
-	suppressUntil                                                                                        time.Time
-	blocked                                                                                              string
-	trayReady                                                                                            bool
-	quit                                                                                                 bool
-	mutex                                                                                                uintptr
-	selectedDomain                                                                                       string
+	store                                                                                                             *limit.Store
+	main, overlay, monitor                                                                                            uintptr
+	fieldDomain, fieldMinutes, list, info, active, btnPause, chkAuto, chkSafe, overlayTitle, overlayNote, monitorText uintptr
+	font, bigFont                                                                                                     uintptr
+	done                                                                                                              chan struct{}
+	scanDelay                                                                                                         <-chan time.Time
+	ticker                                                                                                            *time.Ticker
+	mu                                                                                                                sync.Mutex
+	sample                                                                                                            Sample
+	lastBrowserPID                                                                                                    uint32
+	lastBrowserName                                                                                                   string
+	lastBrowserHost                                                                                                   string
+	lastBrowserAt                                                                                                     time.Time
+	suppressUntil                                                                                                     time.Time
+	blocked                                                                                                           string
+	trayReady                                                                                                         bool
+	quit                                                                                                              bool
+	mutex                                                                                                             uintptr
+	selectedDomain                                                                                                    string
+	monitorEnabled                                                                                                    bool
 }
 
 var current *App
@@ -55,6 +56,7 @@ const (
 	idExit    = 1006
 	idReset   = 1007
 	idExclude = 1008
+	idMonitor = 1009
 	idNewTab  = 2001
 	trayClick = wmApp + 12
 	updated   = wmApp + 10
@@ -71,8 +73,8 @@ func (a *App) publish(s Sample) {
 		a.lastBrowserName = s.Browser
 		if s.Host != "" {
 			a.lastBrowserHost = s.Host
+			a.lastBrowserAt = time.Now()
 		}
-		a.lastBrowserAt = time.Now()
 	}
 	a.mu.Unlock()
 	post(a.main, updated, 0, 0)
@@ -105,6 +107,7 @@ func mainWnd(hwnd uintptr, msg uint32, w, l uintptr) uintptr {
 		return 0
 	case updated:
 		a.updateActive()
+		a.updateMonitor()
 		return 0
 	case wmApp + 13:
 		a.showHub()
@@ -133,6 +136,8 @@ func mainWnd(hwnd uintptr, msg uint32, w, l uintptr) uintptr {
 				a.save()
 				a.refreshRules()
 			}
+		case idMonitor:
+			a.startMonitor()
 		case idExclude:
 			a.mu.Lock()
 			pid := a.lastBrowserPID
@@ -252,6 +257,7 @@ func (a *App) initUI() {
 	bg := call(pGetSysColorBrush, 5)
 	classRegister("FocoLocal.Main.v2", syscall.NewCallback(mainWnd), bg)
 	classRegister("FocoLocal.Overlay.v2", syscall.NewCallback(overlayWnd), bg)
+	classRegister("FocoLocal.Monitor.v2", syscall.NewCallback(overlayWnd), bg)
 	screenW := int32(call(user32.NewProc("GetSystemMetrics"), 0))
 	screenH := int32(call(user32.NewProc("GetSystemMetrics"), 1))
 	x := (screenW - 910) / 2
@@ -286,12 +292,25 @@ func (a *App) initUI() {
 	a.chkSafe = a.control("BUTTON", "Excluir navegadores iniciados por scripts (Python/Node/WebDriver)", bsAutoCheck, 24, 584, 680, 30, idSafe)
 	a.chkAuto = a.control("BUTTON", "Iniciar con Windows", bsAutoCheck, 24, 617, 250, 30, idAuto)
 	a.control("BUTTON", "Salir por completo", 0, 682, 614, 184, 36, idExit)
-	a.info = a.label("Se contabiliza el navegador en primer plano. Sin DNS, proxy ni firewall.", 24, 653, 830, 22, false)
+	a.control("BUTTON", "Probar con monitor flotante", 0, 330, 614, 330, 36, idMonitor)
+	a.info = a.label("Solo cuenta el navegador en primer plano, no vídeos reproduciéndose detrás del hub.", 24, 653, 830, 22, false)
 	a.overlay = create("FocoLocal.Overlay.v2", "Límite diario alcanzado", exToolWindow|exTopMost|exNoActivate, wsPopup|wsVisible, 0, 0, 500, 400, 0, 0)
 	show(a.overlay, swHide)
 	a.overlayTitle = a.overlayLabel("TIEMPO AGOTADO", 220, 145, 760, 58, true)
 	a.overlayNote = a.overlayLabel("Has alcanzado el límite diario configurado.", 220, 225, 760, 70, false)
 	a.overlayControl("BUTTON", "Abrir una pestaña nueva", 0, 220, 338, 340, 46, idNewTab)
+	// Non-activating status window. It lets the user verify counting
+	// while the browser stays foreground, without installing a browser extension.
+	mx := screenW - 515
+	if mx < 0 {
+		mx = 0
+	}
+	a.monitor = create("FocoLocal.Monitor.v2", "Monitor FocoLocal", exToolWindow|exTopMost|exNoActivate, wsPopup, mx, 40, 490, 94, 0, 0)
+	if a.monitor != 0 {
+		a.monitorText = create("STATIC", "Monitor FocoLocal: esperando navegador...", 0, wsVisible|wsChild|ssLeft, 12, 8, 465, 80, a.monitor, 0)
+		setFont(a.monitorText, a.font)
+		show(a.monitor, swHide)
+	}
 	a.tray(0)
 }
 func (a *App) control(class, text string, style uint32, x, y, w, h int32, id int) uintptr {
@@ -420,21 +439,96 @@ func (a *App) refreshRules() {
 func (a *App) updateActive() {
 	s := a.sampleCopy()
 	if s.Host != "" {
-		text(a.active, fmt.Sprintf("%s  |  %s  |  PID %d", s.Browser, s.Host, s.PID))
-	} else if s.PID != 0 {
-		text(a.active, fmt.Sprintf("%s  |  PID %d  |  %s", s.Browser, s.PID, s.Reason))
-	} else {
+		text(a.active, fmt.Sprintf("Detectado: %s | %s | PID %d", s.Browser, s.Host, s.PID))
+		return
+	}
+	if s.PID != 0 {
+		text(a.active, fmt.Sprintf("%s | PID %d | %s", s.Browser, s.PID, s.Reason))
+		return
+	}
+	if strings.HasPrefix(s.Reason, "Hub en primer plano") {
 		a.mu.Lock()
 		name, host, pid, at := a.lastBrowserName, a.lastBrowserHost, a.lastBrowserPID, a.lastBrowserAt
 		a.mu.Unlock()
 		if host != "" && time.Since(at) < time.Hour {
-			text(a.active, fmt.Sprintf("Último sitio: %s | %s | PID %d", name, host, pid))
+			text(a.active, fmt.Sprintf("Hub en primer plano: contador detenido. Usa el monitor flotante.\r\nÚltima detección: %s | %s | PID %d", name, host, pid))
 		} else {
-			text(a.active, s.Reason)
+			text(a.active, "Hub en primer plano: contador detenido. Pulsa 'Probar con monitor flotante'.")
 		}
+		return
+	}
+	text(a.active, s.Reason)
+}
+
+func (a *App) showHub() {
+	a.monitorEnabled = false
+	if a.monitor != 0 {
+		show(a.monitor, swHide)
+	}
+	show(a.main, swRestore)
+	call(pSetForegroundWindow, a.main)
+}
+
+// The floating monitor is deliberately non-activating and read-only.
+// Hiding the hub returns focus to the browser; the monitor itself does not count.
+func (a *App) startMonitor() {
+	if a.monitor == 0 {
+		alert(a.main, "No se pudo crear el monitor flotante")
+		return
+	}
+	a.monitorEnabled = true
+	a.updateMonitor()
+	show(a.monitor, swShowNA)
+	if a.trayReady {
+		show(a.main, swHide)
+	} else {
+		show(a.main, swMinimized)
 	}
 }
-func (a *App) showHub() { show(a.main, swRestore); call(pSetForegroundWindow, a.main) }
+
+func formatDuration(ms int64) string {
+	if ms < 0 {
+		ms = 0
+	}
+	totalSeconds := ms / 1000
+	return fmt.Sprintf("%02d:%02d", totalSeconds/60, totalSeconds%60)
+}
+
+func (a *App) updateMonitor() {
+	if !a.monitorEnabled || a.monitorText == 0 {
+		return
+	}
+	s := a.sampleCopy()
+	if s.Host == "" || s.Window == 0 || fg() != s.Window || time.Since(s.At) > 3300*time.Millisecond {
+		reason := s.Reason
+		if reason == "" {
+			reason = "No hay navegador activo"
+		}
+		text(a.monitorText, "FOCOLOCAL | MONITOR EN VIVO\r\n"+reason+"\r\nAbre el hub desde el icono de bandeja")
+		return
+	}
+	cfg, used := a.store.Snapshot(time.Now())
+	var domain string
+	var max int64
+	for _, r := range cfg.Rules {
+		if r.Enabled && limit.Matches(s.Host, r.Domain) && len(r.Domain) > len(domain) {
+			domain = r.Domain
+			max = int64(r.Minutes) * 60 * 1000
+		}
+	}
+	if cfg.Paused {
+		text(a.monitorText, "FOCOLOCAL | CONTROL PAUSADO\r\n"+s.Browser+" | "+s.Host+"\r\nReanuda desde el panel principal")
+		return
+	}
+	if domain == "" {
+		text(a.monitorText, "FOCOLOCAL | SIN REGLA PARA ESTE SITIO\r\n"+s.Browser+" | "+s.Host+"\r\nNo se descuenta tiempo")
+		return
+	}
+	spent := used[domain]
+	remaining := max - spent
+	text(a.monitorText, fmt.Sprintf("FOCOLOCAL | %s | %s\r\nUsados: %s de %s | Restan: %s\r\nEl contador solo avanza con el navegador activo", s.Browser, s.Host, formatDuration(spent), formatDuration(max), formatDuration(remaining)))
+}
+
 func (a *App) tick() {
 	s := a.sampleCopy()
 	now := time.Now()
@@ -459,6 +553,7 @@ func (a *App) tick() {
 		a.blocked = ""
 		show(a.overlay, swHide)
 	}
+	a.updateMonitor()
 	if now.Unix()%4 == 0 {
 		a.refreshRules()
 	}

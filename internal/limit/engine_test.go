@@ -59,3 +59,31 @@ func TestPauseAndHostRules(t *testing.T) {
 		t.Fatalf("pause %v", u)
 	}
 }
+
+// Keeping a video playing in a background tab must not debit the interactive
+// budget. A browser returned to foreground starts a fresh accounting interval.
+func TestBackgroundIntervalDoesNotCount(t *testing.T) {
+	s, _ := Open(filepath.Join(t.TempDir(), "db.json"))
+	if err := s.Add("youtube.com", 2); err != nil {
+		t.Fatal(err)
+	}
+	now := time.Date(2026, 11, 6, 8, 0, 0, 0, time.Local)
+	s.Observe("youtube.com", "edge:youtube", now)
+	s.Observe("youtube.com", "edge:youtube", now.Add(time.Second))
+	s.Observe("", "", now.Add(2*time.Second))
+	s.Observe("", "", now.Add(4*time.Minute))
+	_, used := s.Snapshot(now)
+	if used["youtube.com"] != 1000 {
+		t.Fatalf("background usage must not be charged: %v", used)
+	}
+	s.Observe("youtube.com", "edge:youtube", now.Add(4*time.Minute+time.Second))
+	_, used = s.Snapshot(now)
+	if used["youtube.com"] != 1000 {
+		t.Fatalf("first foreground sample must not charge idle time: %v", used)
+	}
+	s.Observe("youtube.com", "edge:youtube", now.Add(4*time.Minute+2*time.Second))
+	_, used = s.Snapshot(now)
+	if used["youtube.com"] != 2000 {
+		t.Fatalf("foreground resume not charged: %v", used)
+	}
+}

@@ -4,7 +4,7 @@
 
 ![Go](https://img.shields.io/badge/Go-1.23%2B-00ADD8?logo=go&logoColor=white) ![Platform](https://img.shields.io/badge/Windows-10%20%2F%2011-0078D4?logo=windows&logoColor=white) ![License](https://img.shields.io/badge/license-MIT-555555) ![Status](https://img.shields.io/badge/estado-evaluaci%C3%B3n-orange)
 
-> **Estado: v0.2.0 de evaluación.** El motor pasó pruebas unitarias y el ejecutable se puede compilar, pero la integración UI Automation/Win32 **no se ha verificado en Windows real**. No se puede garantizar compatibilidad con todos los navegadores ni aislamiento absoluto de automatizaciones.
+> **Estado: v0.2.1 de evaluación.** El motor pasó pruebas unitarias y el ejecutable se puede compilar, pero la integración UI Automation/Win32 **no se ha verificado en Windows real**. No se puede garantizar compatibilidad con todos los navegadores ni aislamiento absoluto de automatizaciones.
 
 ## Qué hace
 
@@ -14,6 +14,7 @@
 - Funciona sin extensiones, cuentas de usuario, suscripción, proxy, cambios DNS, archivo HOSTS ni reglas del firewall.
 - Conserva reglas y contadores en el propio PC, sin telemetría del proyecto.
 - Ofrece exclusiones de PID y detección **heurística** de navegadores iniciados por automatizaciones.
+- Incluye un **monitor flotante no activable** para comprobar qué dominio se detecta y ver el tiempo consumido mientras el navegador tiene el foco.
 
 ## Instalación y uso
 
@@ -24,9 +25,12 @@
 3. Ejecútalo en Windows 10/11 con tu usuario normal: **sin extensiones ni permisos de administrador**.
 4. Agrega un dominio y minutos: `youtube.com`, `30` y **Guardar límite**.
 5. Si quieres, activa **Iniciar con Windows** desde el hub.
-6. Para salir definitivamente, usa **Salir por completo** desde la bandeja del sistema.
+6. Para verificar un límite sin perder el foco del navegador, pulsa **Probar con monitor flotante**: el hub se oculta y queda una pequeña ventana de lectura en pantalla. Activa YouTube y observa el contador. El hub se abre desde su icono en la bandeja del sistema.
+7. Para salir definitivamente, usa **Salir por completo** desde la bandeja del sistema.
 
-**Alcance:** el contador mide **tiempo visible en primer plano**. No contabiliza descargas, API, pestañas ocultas ni actividad en segundo plano.
+Consulta [la prueba guiada de dos minutos](docs/GUIA_PRUEBA_WINDOWS.md) si el contador permanece a cero.
+
+**Alcance:** el contador mide **tiempo de navegador en primer plano**. Si el hub de FocoLocal está por delante de YouTube, **no descontará el tiempo** aunque el vídeo continúe reproduciéndose. Tampoco contabiliza descargas, API, pestañas ocultas ni actividad en segundo plano. Detectar reproducción de vídeo en segundo plano en todos los navegadores sin extensiones no está implementado.
 
 ### Para desarrolladores
 

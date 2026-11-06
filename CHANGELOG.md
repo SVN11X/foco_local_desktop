@@ -1,3 +1,17 @@
+## [0.2.1] - 2026-11-06
+
+### Corregido
+- El hub ahora explica cuándo tiene el foco y por qué el contador no avanza.
+- Se diferencia el último dominio leído correctamente del navegador observado sin URL.
+
+### Agregado
+- Monitor flotante no activable para observar la URL detectada y el consumo acumulado en segundos mientras el navegador conserva el foco.
+- Guía de diagnóstico reproducible en Windows, sin extensiones ni Go local.
+
+### Límites conocidos
+- No se mide reproducción de vídeo en pestañas o ventanas en segundo plano.
+- La lectura de dominios depende de la accesibilidad UI Automation que exponga cada navegador y requiere pruebas en Windows real.
+
 # FocoLocal Desktop
 
 ## Unreleased · preparación del repositorio GitHub

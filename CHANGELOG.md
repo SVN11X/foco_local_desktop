@@ -1,3 +1,18 @@
+## [0.2.3] - 2026-11-06
+
+### Diseño y experiencia
+- Panel de escritorio rediseñado con tarjetas claras, navegación lateral, contraste, iconos tipográficos y botones con estados de foco.
+- Acceso directo al repositorio SVN11X/foco_local_desktop desde el hub.
+- Ocho sitios predefinidos para añadir reglas con un clic, sin reemplazar de forma accidental reglas existentes.
+- Totales diarios, estados y lista actualizados cada segundo, sin refrescos de cuatro segundos.
+- Página HTML local de bloqueo más acogedora, con recomendaciones de pausas y siguientes actividades, diseño adaptable y sin scripts ni recursos remotos.
+
+### Contabilización y compatibilidad
+- Continúa contabilizando solo dominios identificados en la ventana de navegador en primer plano; pestañas ocultas y procesos de fondo no consumen tiempo.
+- El refresco visual de un segundo es independiente del sondeo UIA, conservando el coste de lectura previo y sin cambiar los mecanismos de red.
+- Se conserva el bloqueo con detención de reproducción y el respaldo visual anteriores.
+- Verificación local: pruebas del motor y catálogo, `go vet` Windows y compilación Windows x64. Interfaz nativa pendiente de validación real en Windows.
+
 ## [0.2.2] - 2026-11-06
 
 ### Correcciones y seguridad

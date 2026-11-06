@@ -24,7 +24,7 @@ func TestBlockedPageContent(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, want := range []string{"Tiempo agotado", "youtube.com", "vídeo y el audio", "FocoLocal"} {
+	for _, want := range []string{"Lo hiciste bien", "youtube.com", "vídeo y el audio", "FOCOLOCAL", "¿Qué puedes hacer ahora?", "about:blank"} {
 		if !strings.Contains(string(data), want) {
 			t.Errorf("blocked page missing %q", want)
 		}
@@ -38,5 +38,12 @@ func TestFileURL(t *testing.T) {
 	got := pathToFileURL(`C:\Users\Ale\AppData\Roaming\FocoLocalDesktop\bloqueado-youtube.com.html`)
 	if !strings.HasPrefix(got, "file:///C:/Users/Ale/") {
 		t.Fatalf("unexpected file URL %q", got)
+	}
+}
+
+func TestBlockedPageEscapesDomain(t *testing.T) {
+	html := blockedPageHTML(`<script>alert(1)</script>`)
+	if strings.Contains(html, `<script>alert`) || !strings.Contains(html, `&lt;script&gt;`) {
+		t.Fatal("domain markup was not escaped")
 	}
 }

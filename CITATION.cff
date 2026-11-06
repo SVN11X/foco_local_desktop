@@ -6,4 +6,4 @@ abstract: "Controlador local del tiempo de uso de sitios web en Windows sin exte
 authors:
   - name: FocoLocal Desktop contributors
 license: MIT
-version: 0.2.0
+version: 0.2.3

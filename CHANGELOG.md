@@ -1,3 +1,13 @@
+## [0.3.1] - 2026-11-06
+
+- Biblioteca: 20 pictogramas de marcas reconocibles de Font Awesome Free, locales y con atribución; monogramas para marcas sin icono disponible.
+- Experiencia: temas claro, oscuro y sistema (preferencia guardada); encabezado nativo oscuro cuando corresponda.
+- Resumen verificable: total de uso realmente contabilizado hoy separado de presupuestos diarios, semanales y mensuales. Registros diarios persistidos.
+- Reglas: filas nativas de selección con icono, hoy, presupuesto, estado y progreso.
+- Bloqueo: HTML responsivo sin desplazamiento vertical a alturas de ventana comunes y con modo oscuro del sistema.
+- Compatibilidad: configuración anterior se conserva. El desglose por día de presupuestos semanales/mensuales anteriores no se puede reconstruir: el primer día se indica la hora de inicio del nuevo contador.
+- Calidad: pruebas de contadores, temas y migración; compilación cruzada Windows x64 y análisis estático.
+
 ## [0.3.0] - 2026-11-06
 
 ### Added

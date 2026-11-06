@@ -30,6 +30,7 @@ type labelStyle struct{ ink, backdrop uint32 }
 type buttonStyle struct {
 	normal, pressed, ink, stroke uint32
 	badge                        string
+	logo                         string
 	accent                       uint32
 }
 
@@ -195,9 +196,11 @@ func (a *App) paintButton(l uintptr) uintptr {
 	flags := uintptr(dtCenter | dtVCenter | dtSingleLine | dtEndEllipsis)
 	if style.badge != "" {
 		mark := rect{r.Left + 15, r.Top + 16, r.Left + 67, r.Bottom - 16}
-		a.paintRounded(item.DC, mark, 15, style.accent, style.accent)
-		call(pSetTextColor, item.DC, uintptr(colorWhite))
-		call(pDrawText, item.DC, su(style.badge), ^uintptr(0), uintptr(unsafe.Pointer(&mark)), dtCenter|dtVCenter|dtSingleLine)
+		if !a.paintBrand(item.DC, style.logo, mark.Left, mark.Top-10, 45, bg) {
+			a.paintRounded(item.DC, mark, 15, style.accent, style.accent)
+			call(pSetTextColor, item.DC, uintptr(color(255, 255, 255)))
+			call(pDrawText, item.DC, su(style.badge), ^uintptr(0), uintptr(unsafe.Pointer(&mark)), dtCenter|dtVCenter|dtSingleLine)
+		}
 		call(pSetTextColor, item.DC, uintptr(ink))
 		r.Left += 80
 		flags = uintptr(dtVCenter | dtSingleLine | dtEndEllipsis)
@@ -217,7 +220,7 @@ func (a *App) paintButton(l uintptr) uintptr {
 func (a *App) ctlColor(dc, hwnd uintptr) uintptr {
 	style, ok := a.labelStyles[hwnd]
 	if !ok {
-		style = labelStyle{colorText, colorCanvas}
+		style = labelStyle{colorText, colorWhite}
 	}
 	call(pSetBkMode, dc, 1)
 	call(pSetTextColor, dc, uintptr(style.ink))

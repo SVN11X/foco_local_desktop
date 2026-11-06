@@ -103,6 +103,7 @@ func (a *App) showCategory(category int) {
 		text(btn, p.Name)
 		style := a.buttonStyles[btn]
 		style.badge = p.Icon
+		style.logo = p.Domain
 		style.accent = color(p.Color[0], p.Color[1], p.Color[2])
 		a.buttonStyles[btn] = style
 		show(btn, swShow)

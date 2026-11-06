@@ -29,7 +29,11 @@ type App struct {
 	store                                                                                                                                                                                                                    *limit.Store
 	main, overlay, monitor                                                                                                                                                                                                   uintptr
 	fieldDomain, fieldMinutes, fieldFrom, fieldTo, fieldSession, fieldBreak, fieldMonths, comboPeriod, comboUnit, comboDays, list, info, active, btnPause, chkAuto, chkSafe, chkStop, overlayTitle, overlayNote, monitorText uintptr
-	statRules, statUsed, statMode                                                                                                                                                                                            uintptr
+	ruleRows                                                                                                                                                                                                                 []ruleRow
+	statRules, statUsed, statMode, statUsedExplain                                                                                                                                                                           uintptr
+	themeButtons                                                                                                                                                                                                             [3]uintptr
+	themeMode                                                                                                                                                                                                                string
+	isDark                                                                                                                                                                                                                   bool
 	font, bigFont, smallFont, sectionFont, heroFont                                                                                                                                                                          uintptr
 	brushes                                                                                                                                                                                                                  map[uint32]uintptr
 	labelStyles                                                                                                                                                                                                              map[uintptr]labelStyle
@@ -83,6 +87,9 @@ const (
 	idEdit          = 1603
 	idRules         = 1604
 	idNewTab        = 2001
+	idThemeSystem   = 1710
+	idThemeLight    = 1711
+	idThemeDark     = 1712
 	trayClick       = wmApp + 12
 	updated         = wmApp + 10
 )
@@ -129,12 +136,20 @@ func mainWnd(hwnd uintptr, msg uint32, w, l uintptr) uintptr {
 		return 0
 	case wmEraseBackground:
 		return 1
+	case 0x001A, 0x031A: // WM_SETTINGCHANGE, WM_THEMECHANGED
+		if a.themeMode == "system" {
+			a.applyTheme("system")
+		}
+		return 0
 	case wmPaint:
 		a.renderBackground(hwnd)
 		return 0
-	case wmCtlColorStatic, wmCtlColorBtn:
+	case wmCtlColorStatic, wmCtlColorBtn, wmCtlColorEdit, wmCtlColorListbox:
 		return a.ctlColor(w, l)
 	case wmDrawItem:
+		if a.paintRuleRow(l) != 0 {
+			return 1
+		}
 		return a.paintButton(l)
 	case wmClose:
 		if a.trayReady {
@@ -211,6 +226,13 @@ func mainWnd(hwnd uintptr, msg uint32, w, l uintptr) uintptr {
 			}
 		case idGitHub:
 			a.openRepository()
+		case idThemeSystem, idThemeLight, idThemeDark:
+			modes := []string{"system", "light", "dark"}
+			mode := modes[id-idThemeSystem]
+			if err := a.store.SetTheme(mode); err == nil {
+				a.applyTheme(mode)
+				a.save()
+			}
 		case idExit:
 			call(pDestroyWindow, a.main)
 		}
@@ -279,6 +301,9 @@ func Run() error {
 	}
 	a := &App{store: store, done: make(chan struct{}), mutex: h, buildPage: -1, scaleX: 1, scaleY: 1}
 	current = a
+	cfg, _ := store.Snapshot(time.Now())
+	a.themeMode = cfg.Theme
+	a.initPalette(cfg.Theme)
 	a.initUI()
 	if a.main == 0 {
 		if h != 0 {
@@ -361,6 +386,7 @@ func (a *App) initUI() {
 	if a.main == 0 {
 		return
 	}
+	a.setDarkTitleBar(a.isDark)
 	a.font = makeFont(-17, 400)
 	a.smallFont = makeFont(-14, 400)
 	a.bigFont = makeFont(-28, 700)
@@ -380,7 +406,7 @@ func (a *App) initUI() {
 	a.btnPause = a.styledButton("Ⅱ  Pausar control", 19, 567, 199, 44, idPause, colorSidebarSoft, colorSidebar, colorWhite, colorSidebarSoft)
 	a.styledButton("↗  Repositorio GitHub", 19, 628, 199, 41, idGitHub, colorSidebarSoft, colorSidebar, colorWhite, colorSidebarSoft)
 	a.styledButton("Salir por completo", 19, 680, 199, 41, idExit, colorSidebar, colorSidebarSoft, colorSubtle, colorSidebarSoft)
-	a.styledLabel("v0.3.0  •  LOCAL", 29, 740, 186, 19, a.smallFont, colorSubtle, colorSidebar)
+	a.styledLabel("v0.3.1  •  LOCAL", 29, 740, 186, 19, a.smallFont, colorSubtle, colorSidebar)
 	a.styledLabel("FOCOLOCAL DESKTOP", 269, 29, 245, 17, a.smallFont, colorBlue, colorCanvas)
 	a.styledLabel("Tu tiempo, mejor utilizado", 268, 53, 622, 45, a.heroFont, colorText, colorCanvas)
 	a.styledLabel("Gestiona distracciones sin afectar tus proyectos ni tu privacidad.", 271, 101, 695, 23, a.font, colorMuted, colorCanvas)
@@ -390,13 +416,15 @@ func (a *App) initUI() {
 	a.buildPage = 0
 	a.styledLabel("SITIOS CONTROLADOS", 282, 166, 225, 20, a.smallFont, colorMuted, colorWhite)
 	a.statRules = a.styledLabel("0 sitios", 282, 192, 240, 38, a.heroFont, colorText, colorWhite)
-	a.styledLabel("TIEMPO CONSUMIDO", 572, 166, 230, 20, a.smallFont, colorMuted, colorWhite)
+	a.styledLabel("USO REAL REGISTRADO HOY", 572, 166, 265, 20, a.smallFont, colorMuted, colorWhite)
 	a.statUsed = a.styledLabel("00:00", 573, 192, 235, 38, a.heroFont, colorText, colorWhite)
+	a.statUsedExplain = a.styledLabel("Suma de sitios, sin duplicados", 573, 233, 265, 16, a.smallFont, colorMuted, colorWhite)
 	a.styledLabel("ESTADO ACTUAL", 869, 166, 235, 20, a.smallFont, colorMuted, colorWhite)
 	a.statMode = a.styledLabel("● Activo", 869, 194, 218, 34, a.sectionFont, colorGreen, colorWhite)
 	a.styledLabel("Tus reglas de navegación", 285, 281, 520, 34, a.sectionFont, colorText, colorWhite)
-	a.styledLabel("Selecciona una regla para editarla o quitarla.", 285, 316, 720, 22, a.smallFont, colorMuted, colorWhite)
-	a.list = a.control("LISTBOX", "", wsBorder|wsVScroll|lbsNotify|wsTabstop, 286, 354, 826, 142, 0)
+	a.styledLabel("Hoy es distinto de tu presupuesto semanal o mensual. Selecciona una regla para editarla.", 285, 316, 790, 22, a.smallFont, colorMuted, colorWhite)
+	a.list = a.control("LISTBOX", "", wsBorder|wsVScroll|lbsNotify|wsTabstop|lbsOwnerDrawFixed|lbsHasStrings, 286, 354, 826, 142, 0)
+	send(a.list, lbSetItemHeight, 0, 68)
 	a.styledButton("✎  Editar selección", 287, 510, 237, 43, idEdit, colorPaleBlue, colorBorder, colorBlue, colorPaleBlue)
 	a.styledButton("−  Eliminar", 539, 510, 183, 43, idRemove, colorWhite, colorPaleBlue, colorError, colorBorder)
 	a.styledButton("↻  Reiniciar contadores", 735, 510, 243, 43, idReset, colorWhite, colorPaleBlue, colorText, colorBorder)
@@ -485,6 +513,11 @@ func (a *App) initUI() {
 	a.styledLabel("Cuenta una ventana elegida aunque otra esté en primer plano,", 296, 643, 803, 23, a.font, colorText, colorWhite)
 	a.styledLabel("solo si sigue visible y hay actividad reciente en el PC.", 296, 669, 802, 22, a.smallFont, colorMuted, colorWhite)
 	a.styledLabel("No detecta la mirada. Las exclusiones de scripts siguen vigentes.", 296, 709, 790, 20, a.smallFont, colorMuted, colorWhite)
+	a.styledLabel("APARIENCIA", 730, 548, 348, 21, a.smallFont, colorMuted, colorWhite)
+	for i, option := range []string{"Sistema", "Claro", "Oscuro"} {
+		a.themeButtons[i] = a.styledButton(option, int32(730+i*130), 579, 120, 43, idThemeSystem+i, colorWhite, colorPaleBlue, colorText, colorBorder)
+	}
+	a.styledLabel("Usa la apariencia que prefieras.", 733, 638, 392, 22, a.smallFont, colorMuted, colorWhite)
 	a.buildPage = -1
 	a.overlay = create("FocoLocal.Overlay.v2", "Límite alcanzado", exToolWindow|exTopMost|exNoActivate, wsPopup, 0, 0, 500, 400, 0, 0)
 	show(a.overlay, swHide)
@@ -504,6 +537,7 @@ func (a *App) initUI() {
 	a.showCategory(0)
 	a.showPage(0)
 	a.updateModeInfo()
+	a.applyTheme(a.themeMode)
 	a.tray(0)
 }
 
@@ -663,11 +697,11 @@ func (a *App) refreshRules() {
 	send(a.list, wmSetRedraw, 0, 0)
 	send(a.list, lbResetContent, 0, 0)
 	indexToSelect := -1
-	var totalUsed int64
+	a.ruleRows = nil
+	totalToday, today := a.store.TodayUsage(time.Now())
 	activeCount := 0
 	for i, r := range cfg.Rules {
 		spent := used[r.Domain]
-		totalUsed += spent
 		budget := int64(r.Minutes) * 60000
 		remaining := budget - spent
 		if remaining < 0 {
@@ -687,8 +721,9 @@ func (a *App) refreshRules() {
 		if r.Period == "blocked" {
 			state = "⛔ Bloqueado"
 		}
-		line := fmt.Sprintf("%-26s   %-22s   %s / %s   ·   %s", r.Domain, suffix, formatDuration(spent), formatDuration(budget), state)
+		line := fmt.Sprintf("%-23s   %-19s   hoy %s   |   período %s / %s   |   %s", r.Domain, suffix, formatDuration(today[r.Domain]), formatDuration(spent), formatDuration(budget), state)
 		send(a.list, lbAddString, 0, su(line))
+		a.ruleRows = append(a.ruleRows, ruleRow{Domain: r.Domain, Period: suffix, Today: today[r.Domain], Spent: spent, Budget: budget, State: state, Enabled: r.Enabled, Blocked: r.Period == "blocked"})
 		if r.Domain == prev {
 			indexToSelect = i
 		}
@@ -699,7 +734,32 @@ func (a *App) refreshRules() {
 	send(a.list, wmSetRedraw, 1, 0)
 	call(pInvalidateRect, a.list, 0, 0)
 	text(a.statRules, fmt.Sprintf("%d sitios", activeCount))
-	text(a.statUsed, formatDuration(totalUsed))
+	text(a.statUsed, formatDuration(totalToday))
+	if cfg.DailyTrackingSince != "" && strings.HasPrefix(cfg.DailyTrackingSince, time.Now().Format("2006-01-02")) {
+		if started, e := time.Parse(time.RFC3339, cfg.DailyTrackingSince); e == nil {
+			text(a.statUsedExplain, "Desde la actualización: "+started.Format("15:04"))
+		}
+	} else {
+		deleted := false
+		for d := range today {
+			found := false
+			for _, r := range cfg.Rules {
+				if r.Domain == d {
+					found = true
+					break
+				}
+			}
+			if !found {
+				deleted = true
+				break
+			}
+		}
+		if deleted {
+			text(a.statUsedExplain, "Incluye sitios eliminados hoy")
+		} else {
+			text(a.statUsedExplain, "Suma de sitios, sin duplicados")
+		}
+	}
 	if cfg.Paused {
 		text(a.btnPause, "▶  Reanudar control")
 		text(a.statMode, "Ⅱ Pausado")

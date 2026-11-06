@@ -12,3 +12,10 @@ El hub utiliza una jerarquía clara, colores de alto contraste y componentes Win
 - En resoluciones reducidas se ajustan proporcionalmente controles y superficies; los textos más largos pueden necesitar validación adicional con escalado de Windows 125 %/150 %.
 
 **Pendiente:** validar la interfaz directamente en Windows, lector de pantalla, alto contraste, accesibilidad de la lista de reglas, el icono del ejecutable y localización. Los marcadores gráficos de los sitios son iconos de identificación simples, no logotipos oficiales.
+
+
+## v0.3.1 — métricas y temas
+
+El total del resumen es `DailyUsage[YYYY-MM-DD]` y *no* una suma de `Usage` de períodos distintos. Las reglas muestran dos cifras separadas. El tiempo solo se carga para una ventana reconocida en primer plano o la ventana que el usuario siguió manualmente (si está visible y existe actividad reciente); los scripts siguen excluidos.
+
+Los modos claro, oscuro y sistema cambian los colores del hub y la barra de título. El HTML local de bloqueo utiliza `prefers-color-scheme`. Las imágenes de las marcas se incluyen offline con atribución.

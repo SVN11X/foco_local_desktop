@@ -36,14 +36,17 @@ type IntervalState struct {
 }
 
 type Config struct {
-	Rules          []Rule                              `json:"rules"`
-	Usage          map[string]map[string]int64         `json:"usage_ms"`
-	Intervals      map[string]map[string]IntervalState `json:"intervals,omitempty"` // YYYY-MM-DD -> domain -> spent milliseconds
-	AutoStart      bool                                `json:"auto_start"`
-	SafeAutomation bool                                `json:"safe_automation"`
-	Paused         bool                                `json:"paused"`
-	BlockMode      string                              `json:"block_mode,omitempty"`    // navigate (stop playback) or overlay (visual only)
-	ExcludedPIDs   []uint32                            `json:"excluded_pids,omitempty"` // ephemeral, not saved
+	Rules              []Rule                              `json:"rules"`
+	Usage              map[string]map[string]int64         `json:"usage_ms"`
+	DailyUsage         map[string]map[string]int64         `json:"daily_usage_ms,omitempty"`
+	Theme              string                              `json:"theme,omitempty"` // system, light, dark
+	DailyTrackingSince string                              `json:"daily_tracking_since,omitempty"`
+	Intervals          map[string]map[string]IntervalState `json:"intervals,omitempty"` // YYYY-MM-DD -> domain -> spent milliseconds
+	AutoStart          bool                                `json:"auto_start"`
+	SafeAutomation     bool                                `json:"safe_automation"`
+	Paused             bool                                `json:"paused"`
+	BlockMode          string                              `json:"block_mode,omitempty"`    // navigate (stop playback) or overlay (visual only)
+	ExcludedPIDs       []uint32                            `json:"excluded_pids,omitempty"` // ephemeral, not saved
 }
 
 type Store struct {
@@ -70,6 +73,35 @@ func Open(path string) (*Store, error) {
 	}
 	if s.Data.Intervals == nil {
 		s.Data.Intervals = make(map[string]map[string]IntervalState)
+	}
+	if s.Data.DailyUsage == nil {
+		s.Data.DailyUsage = make(map[string]map[string]int64)
+		// When migrating from v0.3.0, daily rules can be safely recovered.
+		// Weekly/monthly totals cannot be allocated backwards to individual days.
+		for _, r := range s.Data.Rules {
+			if r.Period == "week" || r.Period == "month" {
+				if s.Data.Usage[periodKey(r, time.Now())][r.Domain] > 0 {
+					s.Data.DailyTrackingSince = time.Now().Format(time.RFC3339)
+					break
+				}
+			}
+		}
+		for _, r := range s.Data.Rules {
+			if r.Period == "" || r.Period == "day" || r.Period == "schedule" || r.Period == "interval" {
+				day := dateKey(time.Now())
+				if s.Data.Usage[day][r.Domain] > 0 {
+					if s.Data.DailyUsage[day] == nil {
+						s.Data.DailyUsage[day] = make(map[string]int64)
+					}
+					s.Data.DailyUsage[day][r.Domain] = s.Data.Usage[day][r.Domain]
+				}
+			}
+		}
+		s.dirty = true
+	}
+	if s.Data.Theme != "system" && s.Data.Theme != "light" && s.Data.Theme != "dark" {
+		s.Data.Theme = "system"
+		s.dirty = true
 	}
 	// Existing v0.2.1 configurations opt into stopping playback by default.
 	// The user can switch back to the less intrusive overlay mode in the hub.
@@ -297,6 +329,34 @@ func (s *Store) SetSafeAutomation(safe bool) {
 	s.Data.SafeAutomation = safe
 	s.dirty = true
 }
+func (s *Store) SetTheme(mode string) error {
+	if mode != "system" && mode != "light" && mode != "dark" {
+		return fmt.Errorf("tema inválido: %s", mode)
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.Data.Theme = mode
+	s.dirty = true
+	return nil
+}
+
+// TodayUsage is a separate, non-overlapping tally. A rule's weekly or monthly
+// usage is NOT the same as time spent today. Only Observe adds to this tally.
+func (s *Store) TodayUsage(now time.Time) (int64, map[string]int64) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	out := make(map[string]int64)
+	var total int64
+	for domain, ms := range s.Data.DailyUsage[dateKey(now)] {
+		if ms < 0 {
+			continue
+		}
+		out[domain] = ms
+		total += ms
+	}
+	return total, out
+}
+
 func (s *Store) SetAutoStart(enabled bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -382,6 +442,7 @@ func (s *Store) Observe(host, sampleID string, now time.Time) (blocked string, u
 	if spent >= cap {
 		return r.Domain, spent, cap
 	}
+	previousSpent := spent
 	if r.Period == "interval" {
 		day := dateKey(now)
 		if s.Data.Intervals == nil {
@@ -407,6 +468,12 @@ func (s *Store) Observe(host, sampleID string, now time.Time) (blocked string, u
 			state.UntilMS = now.Add(time.Duration(r.BreakMinutes) * time.Minute).UnixMilli()
 			s.Data.Intervals[day][r.Domain] = state
 			s.Data.Usage[key][r.Domain] = spent
+			if spent > previousSpent {
+				if s.Data.DailyUsage[day] == nil {
+					s.Data.DailyUsage[day] = make(map[string]int64)
+				}
+				s.Data.DailyUsage[day][r.Domain] += spent - previousSpent
+			}
 			return r.Domain, spent, cap
 		}
 		s.Data.Intervals[day][r.Domain] = state
@@ -415,6 +482,16 @@ func (s *Store) Observe(host, sampleID string, now time.Time) (blocked string, u
 		s.dirty = true
 	}
 	s.Data.Usage[key][r.Domain] = spent
+	if spent > previousSpent {
+		day := dateKey(now)
+		if s.Data.DailyUsage == nil {
+			s.Data.DailyUsage = make(map[string]map[string]int64)
+		}
+		if s.Data.DailyUsage[day] == nil {
+			s.Data.DailyUsage[day] = make(map[string]int64)
+		}
+		s.Data.DailyUsage[day][r.Domain] += spent - previousSpent
+	}
 	if spent >= cap {
 		return r.Domain, spent, cap
 	}
@@ -428,6 +505,7 @@ func (s *Store) ResetTimer(now time.Time) {
 		key := periodKey(r, now)
 		delete(s.Data.Usage[key], r.Domain)
 		delete(s.Data.Intervals[day], r.Domain)
+		delete(s.Data.DailyUsage[day], r.Domain)
 	}
 	s.lastTick = time.Time{}
 	s.dirty = true
@@ -460,6 +538,12 @@ func (s *Store) Save() error {
 			if e != nil || time.Since(d) > 366*24*time.Hour {
 				delete(s.Data.Usage, day)
 			}
+		}
+	}
+	for day := range s.Data.DailyUsage {
+		d, e := time.ParseInLocation("2006-01-02", day, time.Local)
+		if e != nil || time.Since(d) > 366*24*time.Hour {
+			delete(s.Data.DailyUsage, day)
 		}
 	}
 	for day := range s.Data.Intervals {

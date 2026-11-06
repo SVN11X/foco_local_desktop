@@ -4,7 +4,7 @@
 
 ![Go](https://img.shields.io/badge/Go-1.23%2B-00ADD8?logo=go&logoColor=white) ![Platform](https://img.shields.io/badge/Windows-10%20%2F%2011-0078D4?logo=windows&logoColor=white) ![License](https://img.shields.io/badge/license-MIT-555555) ![Status](https://img.shields.io/badge/estado-evaluaci%C3%B3n-orange)
 
-> **Estado: v0.3.0 (rediseño funcional, pendiente de validación visual en Windows).** La detección de YouTube y el bloqueo por sustitución de pestaña fueron probados con versiones anteriores. Esta actualización requiere comprobar la interfaz, la navegación local y el modo de dos pantallas en un Windows real. No garantiza compatibilidad con todos los navegadores ni detección de mirada.
+> **Estado: v0.3.1 (temas, iconografía local y métricas diarias; interfaz nativa pendiente de validación visual en Windows).** La detección de YouTube y el bloqueo por sustitución de pestaña fueron probados con versiones anteriores. Esta actualización requiere comprobar la interfaz, la navegación local y el modo de dos pantallas en un Windows real. No garantiza compatibilidad con todos los navegadores ni detección de mirada.
 
 ## Funcionalidades de v0.3.0
 
@@ -117,3 +117,11 @@ Por seguridad, la sustitución requiere dos detecciones consecutivas de la misma
 - El tiempo se descuenta **únicamente con una URL reconocida de un navegador en primer plano**, nunca porque haya audio en segundo plano. Un vídeo visible en primer plano sí cuenta aunque no pulses el teclado o el ratón continuamente.
 - La nueva página HTML local muestra alternativas para continuar el día, mantiene la navegación sin scripts y no recopila información adicional.
 - El prototipo usa una ventana compacta para evitar ocultar controles en pantallas habituales; el escalado DPI y la accesibilidad de diferentes temas deben verificarse en Windows real.
+
+
+## v0.3.1: métricas y apariencia
+
+- **Uso real registrado hoy** se almacena en `daily_usage_ms`, separado de los presupuestos semanales y mensuales. Al actualizar desde versiones antiguas se recupera el día de reglas diarias; el desglose histórico de reglas mensuales/semanales no puede reconstruirse con precisión.
+- En Preferencias se puede elegir Sistema, Claro u Oscuro; la opción Sistema lee la preferencia de Windows.
+- Los logotipos reconocibles de 20 plataformas se incluyen sin conexiones externas. Otras plataformas mantienen un monograma identificativo; la biblioteca no implica relación ni patrocinio de esas marcas. Ver `THIRD_PARTY_NOTICES.md`.
+- La página de descanso usa CSS adaptable por altura y anchura; se mantiene local y sin scripts.

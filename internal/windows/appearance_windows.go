@@ -98,14 +98,18 @@ func (a *App) applyTheme(mode string) {
 		return c
 	}
 	for h, s := range a.labelStyles {
-		s.ink = translate(s.ink)
+		if !s.fixedInk {
+			s.ink = translate(s.ink)
+		}
 		s.backdrop = translate(s.backdrop)
 		a.labelStyles[h] = s
 	}
 	for h, s := range a.buttonStyles {
 		s.normal = translate(s.normal)
 		s.pressed = translate(s.pressed)
-		s.ink = translate(s.ink)
+		if !s.fixedInk {
+			s.ink = translate(s.ink)
+		}
 		s.stroke = translate(s.stroke)
 		a.buttonStyles[h] = s
 	}

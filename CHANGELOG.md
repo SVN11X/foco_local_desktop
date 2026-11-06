@@ -1,3 +1,10 @@
+## v0.3.2 — Corrección de contraste del menú lateral (Windows)
+
+- El menú lateral mantiene texto de alto contraste en los temas claro, oscuro y sistema. Se separaron los colores semánticos de navegación y tarjetas para evitar que la tinta se convierta en el fondo oscuro al cambiar de tema.
+- El elemento seleccionado utiliza azul intenso con texto claro y contraste AA verificado mediante pruebas automatizadas.
+- Retiradas las leyendas de navegación «Sin extensiones» y «Sin cortar Internet»; ahora el menú muestra únicamente acciones útiles.
+- Se conserva el control de sitios, las reglas, la persistencia y la pantalla de bloqueo sin cambios de lógica.
+
 ## [0.3.1] - 2026-11-06
 
 - Biblioteca: 20 pictogramas de marcas reconocibles de Font Awesome Free, locales y con atribución; monogramas para marcas sin icono disponible.

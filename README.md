@@ -4,7 +4,7 @@
 
 ![Go](https://img.shields.io/badge/Go-1.23%2B-00ADD8?logo=go&logoColor=white) ![Platform](https://img.shields.io/badge/Windows-10%20%2F%2011-0078D4?logo=windows&logoColor=white) ![License](https://img.shields.io/badge/license-MIT-555555) ![Status](https://img.shields.io/badge/estado-evaluaci%C3%B3n-orange)
 
-> **Estado: v0.3.1 (temas, iconografía local y métricas diarias; interfaz nativa pendiente de validación visual en Windows).** La detección de YouTube y el bloqueo por sustitución de pestaña fueron probados con versiones anteriores. Esta actualización requiere comprobar la interfaz, la navegación local y el modo de dos pantallas en un Windows real. No garantiza compatibilidad con todos los navegadores ni detección de mirada.
+> **Estado: v0.3.2 (corrección del contraste del menú lateral y simplificación de textos; interfaz nativa pendiente de validación visual en Windows).** La detección de YouTube y el bloqueo por sustitución de pestaña fueron probados con versiones anteriores. Esta actualización requiere comprobar la interfaz, la navegación local y el modo de dos pantallas en un Windows real. No garantiza compatibilidad con todos los navegadores ni detección de mirada.
 
 ## Funcionalidades de v0.3.0
 
@@ -118,6 +118,10 @@ Por seguridad, la sustitución requiere dos detecciones consecutivas de la misma
 - La nueva página HTML local muestra alternativas para continuar el día, mantiene la navegación sin scripts y no recopila información adicional.
 - El prototipo usa una ventana compacta para evitar ocultar controles en pantallas habituales; el escalado DPI y la accesibilidad de diferentes temas deben verificarse en Windows real.
 
+
+## v0.3.2: legibilidad en temas oscuro y claro
+
+Se corrigió un fallo de contraste en el menú lateral: la tinta del menú ya no comparte el color de las tarjetas del área de contenido. Navegación, textos secundarios y botones de acción mantienen alto contraste en Claro, Oscuro y Sistema; el botón seleccionado usa un azul oscuro estable. Se quitaron del menú dos leyendas técnicas redundantes. No se modificaron el motor de contabilidad, las reglas, el esquema de configuración ni la navegación de bloqueo.
 
 ## v0.3.1: métricas y apariencia
 

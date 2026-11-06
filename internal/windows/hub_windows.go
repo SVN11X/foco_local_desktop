@@ -75,14 +75,16 @@ func (a *App) showPage(page int) {
 		}
 		style := a.buttonStyles[hwnd]
 		if idx == page {
-			style.normal = colorBlue
-			style.pressed = colorBlueDark
-			style.stroke = colorBlue
+			style.normal = sidebarSelected
+			style.pressed = sidebarSelectedActive
+			style.stroke = sidebarSelected
 		} else {
 			style.normal = colorSidebar
 			style.pressed = colorSidebarSoft
 			style.stroke = colorSidebar
 		}
+		style.ink = sidebarInk
+		style.fixedInk = true
 		a.buttonStyles[hwnd] = style
 		call(pInvalidateRect, hwnd, 0, 1)
 	}

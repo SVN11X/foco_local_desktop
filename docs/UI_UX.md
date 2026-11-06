@@ -19,3 +19,7 @@ El hub utiliza una jerarquía clara, colores de alto contraste y componentes Win
 El total del resumen es `DailyUsage[YYYY-MM-DD]` y *no* una suma de `Usage` de períodos distintos. Las reglas muestran dos cifras separadas. El tiempo solo se carga para una ventana reconocida en primer plano o la ventana que el usuario siguió manualmente (si está visible y existe actividad reciente); los scripts siguen excluidos.
 
 Los modos claro, oscuro y sistema cambian los colores del hub y la barra de título. El HTML local de bloqueo utiliza `prefers-color-scheme`. Las imágenes de las marcas se incluyen offline con atribución.
+
+## v0.3.2 — Legibilidad en la navegación
+
+El menú lateral utiliza colores semánticos de texto claros e independientes del tema de las tarjetas. Los estados activos usan un azul de contraste suficiente con tinta blanca, y se eliminaron las frases técnicas redundantes del menú. Los modos claro, oscuro y sistema conservan las mismas etiquetas legibles.

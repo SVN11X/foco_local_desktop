@@ -393,20 +393,19 @@ func (a *App) initUI() {
 	a.sectionFont = makeFont(-22, 700)
 	a.heroFont = makeFont(-34, 700)
 
-	a.styledLabel("◉  FOCOLOCAL", 24, 29, 193, 36, a.sectionFont, colorWhite, colorSidebar)
-	a.styledLabel("MENOS RUIDO. MÁS VIDA.", 29, 71, 190, 21, a.smallFont, colorSubtle, colorSidebar)
-	a.styledLabel("TU ESPACIO", 27, 133, 180, 20, a.smallFont, colorSubtle, colorSidebar)
+	a.sidebarLabel("◉  FOCOLOCAL", 24, 29, 193, 36, a.sectionFont, false)
+	a.sidebarLabel("MENOS RUIDO. MÁS VIDA.", 29, 71, 190, 21, a.smallFont, true)
+	a.sidebarLabel("TU ESPACIO", 27, 133, 180, 20, a.smallFont, true)
 	nav := []string{"▦  Resumen", "◈  Explorar sitios", "⊕  Crear regla", "⚙  Preferencias"}
 	for i, label := range nav {
-		a.navButtons[i] = a.styledButton(label, 19, int32(165+i*56), 199, 47, idPageStart+i, colorSidebar, colorSidebarSoft, colorWhite, colorSidebar)
+		a.navButtons[i] = a.sidebarButton(label, 19, int32(165+i*56), 199, 47, idPageStart+i, colorSidebar, colorSidebarSoft, colorSidebar)
 	}
-	a.styledLabel("CONTROL LOCAL", 29, 432, 184, 19, a.smallFont, colorSubtle, colorSidebar)
-	a.styledLabel("Sin extensiones", 29, 461, 183, 23, a.font, colorWhite, colorSidebar)
-	a.styledLabel("Sin cortar Internet", 29, 486, 183, 21, a.smallFont, colorSubtle, colorSidebar)
-	a.btnPause = a.styledButton("Ⅱ  Pausar control", 19, 567, 199, 44, idPause, colorSidebarSoft, colorSidebar, colorWhite, colorSidebarSoft)
-	a.styledButton("↗  Repositorio GitHub", 19, 628, 199, 41, idGitHub, colorSidebarSoft, colorSidebar, colorWhite, colorSidebarSoft)
-	a.styledButton("Salir por completo", 19, 680, 199, 41, idExit, colorSidebar, colorSidebarSoft, colorSubtle, colorSidebarSoft)
-	a.styledLabel("v0.3.1  •  LOCAL", 29, 740, 186, 19, a.smallFont, colorSubtle, colorSidebar)
+	// Clear controls replace redundant technical claims in the sidebar.
+	a.sidebarLabel("ACCIONES", 29, 434, 180, 20, a.smallFont, true)
+	a.btnPause = a.sidebarButton("Ⅱ  Pausar control", 19, 468, 199, 44, idPause, colorSidebarSoft, colorSidebar, colorSidebarSoft)
+	a.sidebarButton("↗  Repositorio GitHub", 19, 526, 199, 42, idGitHub, colorSidebarSoft, colorSidebar, colorSidebarSoft)
+	a.sidebarButton("Salir por completo", 19, 583, 199, 42, idExit, colorSidebar, colorSidebarSoft, colorSidebarSoft)
+	a.sidebarLabel("v0.3.2  •  LOCAL", 29, 740, 186, 19, a.smallFont, true)
 	a.styledLabel("FOCOLOCAL DESKTOP", 269, 29, 245, 17, a.smallFont, colorBlue, colorCanvas)
 	a.styledLabel("Tu tiempo, mejor utilizado", 268, 53, 622, 45, a.heroFont, colorText, colorCanvas)
 	a.styledLabel("Gestiona distracciones sin afectar tus proyectos ni tu privacidad.", 271, 101, 695, 23, a.font, colorMuted, colorCanvas)

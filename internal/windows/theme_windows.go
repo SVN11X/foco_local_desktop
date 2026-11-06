@@ -24,14 +24,27 @@ var (
 	colorPaleGreen   = color(228, 249, 242)
 	colorBorder      = color(222, 231, 243)
 	colorError       = color(169, 54, 65)
+
+	// Stable sidebar semantic colors, intentionally outside the switchable
+	// light/dark content palette. White-on-blue is at least WCAG AA (4.5:1).
+	sidebarInk            = color(241, 246, 255)
+	sidebarInkSecondary   = color(181, 201, 227)
+	sidebarSelected       = color(39, 95, 210)
+	sidebarSelectedActive = color(23, 68, 151)
 )
 
-type labelStyle struct{ ink, backdrop uint32 }
+// fixedInk keeps high-contrast sidebar typography independent of the
+// content-card palette (whose `colorWhite` becomes dark in dark mode).
+type labelStyle struct {
+	ink, backdrop uint32
+	fixedInk      bool
+}
 type buttonStyle struct {
 	normal, pressed, ink, stroke uint32
 	badge                        string
 	logo                         string
 	accent                       uint32
+	fixedInk                     bool
 }
 
 var (
@@ -101,7 +114,7 @@ func (a *App) labelColors(hwnd uintptr, ink, bg uint32) {
 	if a.labelStyles == nil {
 		a.labelStyles = map[uintptr]labelStyle{}
 	}
-	a.labelStyles[hwnd] = labelStyle{ink, bg}
+	a.labelStyles[hwnd] = labelStyle{ink: ink, backdrop: bg}
 }
 func (a *App) styledLabel(value string, x, y, w, h int32, font uintptr, ink, bg uint32) uintptr {
 	hwnd := a.label(value, x, y, w, h, false)
@@ -112,12 +125,34 @@ func (a *App) styledLabel(value string, x, y, w, h int32, font uintptr, ink, bg 
 	return hwnd
 }
 
+// Sidebar labels have fixed, contrasting foreground colors in all themes.
+func (a *App) sidebarLabel(value string, x, y, w, h int32, font uintptr, secondary bool) uintptr {
+	ink := sidebarInk
+	if secondary {
+		ink = sidebarInkSecondary
+	}
+	hwnd := a.styledLabel(value, x, y, w, h, font, ink, colorSidebar)
+	style := a.labelStyles[hwnd]
+	style.fixedInk = true
+	a.labelStyles[hwnd] = style
+	return hwnd
+}
+
 func (a *App) styledButton(value string, x, y, w, h int32, id int, bg, pressed, ink, stroke uint32) uintptr {
 	hwnd := a.control("BUTTON", value, bsOwnerDraw|wsTabstop, x, y, w, h, id)
 	if a.buttonStyles == nil {
 		a.buttonStyles = map[uintptr]buttonStyle{}
 	}
 	a.buttonStyles[hwnd] = buttonStyle{normal: bg, pressed: pressed, ink: ink, stroke: stroke}
+	return hwnd
+}
+
+// Sidebar buttons keep their label color when content panels change theme.
+func (a *App) sidebarButton(value string, x, y, w, h int32, id int, bg, pressed, stroke uint32) uintptr {
+	hwnd := a.styledButton(value, x, y, w, h, id, bg, pressed, sidebarInk, stroke)
+	style := a.buttonStyles[hwnd]
+	style.fixedInk = true
+	a.buttonStyles[hwnd] = style
 	return hwnd
 }
 func (a *App) paintRounded(dc uintptr, r rect, radius int32, bg, outline uint32) {
@@ -220,7 +255,7 @@ func (a *App) paintButton(l uintptr) uintptr {
 func (a *App) ctlColor(dc, hwnd uintptr) uintptr {
 	style, ok := a.labelStyles[hwnd]
 	if !ok {
-		style = labelStyle{colorText, colorWhite}
+		style = labelStyle{ink: colorText, backdrop: colorWhite}
 	}
 	call(pSetBkMode, dc, 1)
 	call(pSetTextColor, dc, uintptr(style.ink))

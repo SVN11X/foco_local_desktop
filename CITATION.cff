@@ -1,0 +1,9 @@
+cff-version: 1.2.0
+message: "Si utilizas FocoLocal Desktop en un proyecto, cita este repositorio."
+type: software
+title: FocoLocal Desktop
+abstract: "Controlador local del tiempo de uso de sitios web en Windows sin extensiones de navegador."
+authors:
+  - name: FocoLocal Desktop contributors
+license: MIT
+version: 0.2.0

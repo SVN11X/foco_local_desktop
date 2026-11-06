@@ -1,0 +1,36 @@
+name: Compatibilidad de navegador
+description: Reportar si la detección del sitio funciona o falla sin extensiones
+labels: [compatibility]
+body:
+  - type: input
+    id: browser
+    attributes:
+      label: Navegador y versión exacta
+      placeholder: Firefox 146 / Edge 146 / etc.
+    validations:
+      required: true
+  - type: input
+    id: windows
+    attributes:
+      label: Windows y versión
+      placeholder: Windows 11 24H2
+    validations:
+      required: true
+  - type: dropdown
+    id: result
+    attributes:
+      label: Resultado
+      options:
+        - Detecta el dominio
+        - No detecta el dominio
+        - Detecta dominio equivocado
+        - Interfiere con automatizaciones
+    validations:
+      required: true
+  - type: textarea
+    id: details
+    attributes:
+      label: Observaciones y pasos
+      description: No compartas datos de navegación privada ni capturas con información personal.
+    validations:
+      required: true

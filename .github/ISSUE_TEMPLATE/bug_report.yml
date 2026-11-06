@@ -1,0 +1,46 @@
+name: Reportar un error
+description: Errores reproducibles de la aplicación de escritorio
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Gracias por informar un error. **No compartas URL completas, historial, datos personales ni archivos de configuración sin anonimizar.**
+  - type: input
+    id: version
+    attributes:
+      label: Versión de FocoLocal
+      placeholder: v0.2.0
+    validations:
+      required: true
+  - type: dropdown
+    id: windows
+    attributes:
+      label: Versión de Windows
+      options: [Windows 10, Windows 11, Otra / no confirmada]
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Pasos para reproducir
+      placeholder: Describe acciones y reglas de ejemplo con dominios públicos ficticios.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Resultado esperado
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Resultado observado
+    validations:
+      required: true
+  - type: textarea
+    id: impact
+    attributes:
+      label: ¿Interfirió con alguna automatización?
+      description: Describe si afectó Playwright, Selenium, VS Code, scripts u otros procesos. Evita revelar información privada.

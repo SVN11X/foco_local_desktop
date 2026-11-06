@@ -1,0 +1,84 @@
+name: CI - pruebas y compilación
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+# Restrict token scope. The workflow does not publish releases or write to the repo.
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality:
+    name: Calidad / ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - name: Configurar Go
+        uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5 # v5.5.0
+        with:
+          go-version-file: go.mod
+          cache: false # no third-party Go deps; avoids cache expectations for a missing go.sum
+      - name: Formato Go
+        shell: bash
+        run: |
+          unformatted="$(gofmt -l cmd internal)"
+          if [ -n "$unformatted" ]; then
+            echo "Los siguientes archivos requieren gofmt:"
+            echo "$unformatted"
+            exit 1
+          fi
+      - name: Pruebas unitarias
+        run: go test -count=1 ./...
+      - name: Análisis estático
+        run: go vet ./...
+      - name: Verificar dependencias
+        run: go mod verify
+
+  windows-exe:
+    name: Compilar EXE / Windows x64
+    needs: quality
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - name: Configurar Go
+        uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5 # v5.5.0
+        with:
+          go-version-file: go.mod
+          cache: false
+      - name: Compilar ejecutable nativo
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Path dist -Force | Out-Null
+          $env:GOOS = 'windows'
+          $env:GOARCH = 'amd64'
+          $env:CGO_ENABLED = '0'
+          go build -trimpath -ldflags='-s -w -H windowsgui' -o dist/FocoLocal.exe ./cmd/focolocal
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $sha = (Get-FileHash -Algorithm SHA256 dist/FocoLocal.exe).Hash.ToLowerInvariant()
+          "$sha  FocoLocal.exe" | Set-Content -Encoding ascii dist/SHA256SUMS.txt
+          Write-Host "SHA256: $sha"
+      - name: Adjuntar compilación (no es una release pública)
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: FocoLocal-Windows-x64
+          path: dist/
+          if-no-files-found: error
+          retention-days: 14

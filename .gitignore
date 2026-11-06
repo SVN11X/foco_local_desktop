@@ -1,0 +1,38 @@
+# Windows artifacts and packaged releases
+*.exe
+*.exe~
+*.dll
+*.msi
+*.msix
+*.pdb
+*.zip
+/dist/
+/build/
+/bin/
+/out/
+
+# Go build/test and coverage outputs
+*.test
+*.test.exe
+*.out
+/coverage/
+coverage.txt
+coverage.out
+
+# Local secrets, diagnostic data and user data
+.env
+.env.*
+!.env.example
+*.log
+*.db
+*.sqlite
+*.sqlite3
+/config.json
+/diagnostics/
+
+# IDE and OS files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+Desktop.ini

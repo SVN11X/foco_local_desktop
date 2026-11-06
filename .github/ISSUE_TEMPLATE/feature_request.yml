@@ -1,0 +1,21 @@
+name: Sugerir una mejora
+description: Propuestas para el hub, medición, compatibilidad o seguridad
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: ¿Qué problema resolvería?
+      description: Describe la necesidad sin revelar datos privados.
+    validations:
+      required: true
+  - type: textarea
+    id: solution
+    attributes:
+      label: Solución propuesta
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternativas consideradas

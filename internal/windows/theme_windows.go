@@ -10,24 +10,28 @@ import (
 func color(r, g, b uint8) uint32 { return uint32(r) | uint32(g)<<8 | uint32(b)<<16 }
 
 var (
-	colorCanvas      = color(246, 249, 253)
-	colorSidebar     = color(18, 36, 62)
-	colorSidebarSoft = color(28, 51, 79)
+	colorCanvas      = color(244, 248, 252)
+	colorSidebar     = color(15, 31, 54)
+	colorSidebarSoft = color(29, 53, 82)
 	colorWhite       = color(255, 255, 255)
 	colorText        = color(30, 47, 72)
 	colorMuted       = color(87, 105, 130)
 	colorSubtle      = color(155, 171, 193)
-	colorBlue        = color(37, 99, 235)
+	colorBlue        = color(43, 91, 221)
 	colorBlueDark    = color(27, 79, 192)
 	colorPaleBlue    = color(233, 241, 255)
 	colorGreen       = color(20, 125, 104)
 	colorPaleGreen   = color(228, 249, 242)
-	colorBorder      = color(219, 228, 241)
+	colorBorder      = color(222, 231, 243)
 	colorError       = color(169, 54, 65)
 )
 
 type labelStyle struct{ ink, backdrop uint32 }
-type buttonStyle struct{ normal, pressed, ink, stroke uint32 }
+type buttonStyle struct {
+	normal, pressed, ink, stroke uint32
+	badge                        string
+	accent                       uint32
+}
 
 var (
 	pBeginPaint       = user32.NewProc("BeginPaint")
@@ -112,7 +116,7 @@ func (a *App) styledButton(value string, x, y, w, h int32, id int, bg, pressed, 
 	if a.buttonStyles == nil {
 		a.buttonStyles = map[uintptr]buttonStyle{}
 	}
-	a.buttonStyles[hwnd] = buttonStyle{bg, pressed, ink, stroke}
+	a.buttonStyles[hwnd] = buttonStyle{normal: bg, pressed: pressed, ink: ink, stroke: stroke}
 	return hwnd
 }
 func (a *App) paintRounded(dc uintptr, r rect, radius int32, bg, outline uint32) {
@@ -135,18 +139,29 @@ func (a *App) renderBackground(hwnd uintptr) {
 	var client rect
 	call(pGetClientRect, hwnd, uintptr(unsafe.Pointer(&client)))
 	call(pFillRect, dc, uintptr(unsafe.Pointer(&client)), a.brush(colorCanvas))
-	left := rect{0, 0, 225, client.Bottom}
-	call(pFillRect, dc, uintptr(unsafe.Pointer(&left)), a.brush(colorSidebar))
-	// A few quiet surfaces provide hierarchy without decorative clutter.
-	a.paintRounded(dc, rect{18, 122, 207, 219}, 18, colorSidebarSoft, colorSidebarSoft)
-	for _, r := range []rect{
-		{247, 99, 510, 182}, {524, 99, 787, 182}, {801, 99, 1066, 182},
-		{247, 194, 1066, 405}, {247, 414, 1066, 591}, {247, 601, 1066, 710},
-	} {
-		a.paintRounded(dc, r, 18, colorWhite, colorBorder)
+	sidebar := rect{0, 0, a.sx(238), client.Bottom}
+	call(pFillRect, dc, uintptr(unsafe.Pointer(&sidebar)), a.brush(colorSidebar))
+	// Pages keep consistent reading order, generous whitespace, and crisp cards.
+	panels := []rect{}
+	switch a.page {
+	case 0:
+		panels = []rect{{261, 152, 553, 250}, {563, 152, 855, 250}, {865, 152, 1153, 250},
+			{261, 267, 1153, 577}, {261, 592, 1153, 768}}
+	default:
+		panels = []rect{{261, 152, 1153, 768}}
 	}
-	// Calm accent bar at the top of the new-rule card.
-	a.paintRounded(dc, rect{271, 206, 276, 238}, 4, colorBlue, colorBlue)
+	for _, r := range panels {
+		a.paintRounded(dc, rect{a.sx(r.Left), a.sy(r.Top), a.sx(r.Right), a.sy(r.Bottom)}, 24, colorWhite, colorBorder)
+	}
+	if a.page == 2 {
+		a.paintRounded(dc, rect{a.sx(277), a.sy(175), a.sx(283), a.sy(224)}, 6, colorBlue, colorBlue)
+	}
+	if a.page == 1 {
+		a.paintRounded(dc, rect{a.sx(277), a.sy(175), a.sx(283), a.sy(222)}, 6, colorGreen, colorGreen)
+	}
+	if a.page == 3 {
+		a.paintRounded(dc, rect{a.sx(277), a.sy(175), a.sx(283), a.sy(222)}, 6, colorBlue, colorBlue)
+	}
 }
 
 func (a *App) paintButton(l uintptr) uintptr {
@@ -171,13 +186,23 @@ func (a *App) paintButton(l uintptr) uintptr {
 		bg = colorBorder
 		ink = colorMuted
 	}
-	a.paintRounded(item.DC, item.RC, 12, bg, style.stroke)
+	a.paintRounded(item.DC, item.RC, 14, bg, style.stroke)
 	call(pSetBkMode, item.DC, 1)
 	call(pSetTextColor, item.DC, uintptr(ink))
 	old := call(pSelectObject, item.DC, a.font)
 	value := getText(item.Window)
 	r := item.RC
-	call(pDrawText, item.DC, su(value), ^uintptr(0), uintptr(unsafe.Pointer(&r)), dtCenter|dtVCenter|dtSingleLine|dtEndEllipsis)
+	flags := uintptr(dtCenter | dtVCenter | dtSingleLine | dtEndEllipsis)
+	if style.badge != "" {
+		mark := rect{r.Left + 15, r.Top + 16, r.Left + 67, r.Bottom - 16}
+		a.paintRounded(item.DC, mark, 15, style.accent, style.accent)
+		call(pSetTextColor, item.DC, uintptr(colorWhite))
+		call(pDrawText, item.DC, su(style.badge), ^uintptr(0), uintptr(unsafe.Pointer(&mark)), dtCenter|dtVCenter|dtSingleLine)
+		call(pSetTextColor, item.DC, uintptr(ink))
+		r.Left += 80
+		flags = uintptr(dtVCenter | dtSingleLine | dtEndEllipsis)
+	}
+	call(pDrawText, item.DC, su(value), ^uintptr(0), uintptr(unsafe.Pointer(&r)), flags)
 	call(pSelectObject, item.DC, old)
 	if item.ItemState&odsFocus != 0 {
 		r.Left += 5

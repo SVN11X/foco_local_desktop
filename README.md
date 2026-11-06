@@ -4,20 +4,32 @@
 
 ![Go](https://img.shields.io/badge/Go-1.23%2B-00ADD8?logo=go&logoColor=white) ![Platform](https://img.shields.io/badge/Windows-10%20%2F%2011-0078D4?logo=windows&logoColor=white) ![License](https://img.shields.io/badge/license-MIT-555555) ![Status](https://img.shields.io/badge/estado-evaluaci%C3%B3n-orange)
 
-> **Estado: v0.2.3 (interfaz renovada; pendiente de prueba visual en Windows).** La detección y el bloqueo de YouTube en Edge se han comprobado en pruebas reales del proyecto. La nueva apariencia aún requiere validación visual en Windows. No se garantiza compatibilidad universal con todos los navegadores ni separación infalible de automatizaciones.
+> **Estado: v0.3.0 (rediseño funcional, pendiente de validación visual en Windows).** La detección de YouTube y el bloqueo por sustitución de pestaña fueron probados con versiones anteriores. Esta actualización requiere comprobar la interfaz, la navegación local y el modo de dos pantallas en un Windows real. No garantiza compatibilidad con todos los navegadores ni detección de mirada.
 
-## Qué hace
+## Funcionalidades de v0.3.0
 
-- Administra en un **hub local rediseñado** reglas por dominio (`youtube.com → 30 min/día`).
-- Ofrece **8 sitios predefinidos de un clic** y campos manuales para cualquier dominio válido. Los predefinidos no cambian límites existentes sin confirmación.
-- Muestra **estadísticas de uso actualizadas cada segundo** (hora:minuto:segundo si procede) y estado del navegador activo.
-- Incluye enlace directo al [repositorio del proyecto](https://github.com/SVN11X/foco_local_desktop).
-- Comparte el tiempo acumulado cuando se reconoce el dominio activo en navegadores distintos.
-- Al agotarse el límite, **sustituye la pestaña por una página local amable**, deteniendo su reproducción. Si falla la navegación o se elige el modo menos intrusivo, usa una cubierta visual que no detiene el audio.
-- Funciona sin extensiones, cuentas de usuario, suscripción, proxy, cambios DNS, archivo HOSTS ni reglas del firewall.
-- Conserva reglas y contadores en el propio PC, sin telemetría del proyecto.
-- Ofrece exclusiones de PID y detección **heurística** de navegadores iniciados por automatizaciones.
-- Incluye un **monitor flotante no activable** para comprobar qué dominio se detecta y ver el tiempo consumido mientras el navegador tiene el foco.
+- **Una sola aplicación de escritorio**: cuatro vistas (Resumen, Explorar sitios, Crear regla, Preferencias), con navegación e iconos de color propios de cada sitio; sin extensiones, cuentas, servicios de red ni dependencias adicionales.
+- **Biblioteca de 36 sitios** agrupados en vídeo y streaming, redes sociales, comunidades, juegos y ocio, compras, y noticias y trabajo. **Seleccionar NO guarda ni activa la regla**: abre el editor con valores sugeridos.
+- **Modalidades:** minutos y horas, presupuesto diario, semanal y mensual; bloqueo todo el día; franjas horarias con días laborables/fines de semana; intervalos de uso/descanso; restricción de meses (`1,2,12` o `4-9`). Se aplican únicamente tras pulsar **Guardar regla**.
+- **Uso compartido entre navegadores** cuando sus barras de direcciones se pueden leer mediante UI Automation. El contador de la interfaz se actualiza cada segundo.
+- **Dos pantallas:** por defecto **solo cuenta el navegador en primer plano**, esté en el monitor que esté. Puedes seleccionar **Seguir otra pantalla** para dar prioridad a esa ventana visible en otro monitor mientras haya actividad reciente en el PC (aunque el navegador principal tenga foco). **No detecta la mirada** y no pretende medir atención ocular. Para detenerlo, pulsa el mismo botón. Esta selección no se guarda entre reinicios.
+- **Bloqueo de página sin audio:** separa el atajo para enfocar la barra de direcciones y la escritura del archivo local para evitar perder la letra inicial de `file:///...`. Si Windows impide la navegación, mantiene el bloqueo superpuesto como respaldo. La página local muestra alternativas y el tipo de renovación de la regla.
+- **Protección de automatizaciones:** no modifica DNS, firewall, hosts ni proxy; mantiene exclusiones por PID y detección heurística de scripts. La protección no es infalible si un script comparte el navegador interactivo.
+- **Persistencia:** reglas y contadores en `%APPDATA%\FocoLocalDesktop\config.json`, **independientes de la carpeta y nombre del EXE**. Puedes reemplazar el `.exe` cuando actualices; no elimines la carpeta de configuración si quieres conservar tus datos.
+
+## Tipos de reglas
+
+| Opción | Comportamiento |
+| --- | --- |
+| Diario | Presupuesto por día; renovación a medianoche local |
+| Semanal | Presupuesto compartido de lunes a domingo; renovación el lunes |
+| Mensual | Presupuesto de todo el mes; renovación el día 1 |
+| Todo el día (bloquear) | Bloquea siempre mientras esté habilitada la regla |
+| Por horario | Permite el sitio solo en la franja `HH:MM–HH:MM` y días elegidos, además del presupuesto diario |
+| Por intervalos | Presupuesto diario con pausas obligatorias tras determinados minutos de uso; la ventana puede necesitar abrirse de nuevo después |
+| Meses | Se puede restringir en qué meses está disponible una regla; el campo vacío implica todos |
+
+El tiempo de vídeo **en una pestaña que no está siendo usada** no se carga. En modo de segunda pantalla se utiliza la selección manual de ventana más un umbral de actividad del equipo; esto es una aproximación y no confirma cuál pantalla estás mirando.
 
 ## Instalación y uso
 
@@ -26,21 +38,21 @@
 1. Obtén `FocoLocal.exe` de una **Release verificada** del repositorio cuando exista; si estás evaluando el prototipo, compílalo con las instrucciones de abajo.
 2. Guárdalo en una ubicación permanente, por ejemplo `C:\Apps\FocoLocal\FocoLocal.exe`.
 3. Ejecútalo en Windows 10/11 con tu usuario normal: **sin extensiones ni permisos de administrador**.
-4. Agrega un dominio y minutos: `youtube.com`, `30` y **Guardar límite**.
-5. Si quieres, utiliza los chips de YouTube, Instagram, TikTok, Reddit, Facebook, Twitch, X / Twitter y Netflix para añadir una regla predefinida; o activa **Iniciar con Windows**.
-6. Para verificar un límite sin perder el foco del navegador, pulsa **Probar con monitor flotante**: el hub se oculta y queda una pequeña ventana de lectura en pantalla. Activa YouTube y observa el contador. El hub se abre desde su icono en la bandeja del sistema.
-7. Para salir definitivamente, usa **Salir por completo** desde la bandeja del sistema.
+4. En **Explorar sitios** selecciona una web, o entra a **Crear regla** e introduce el dominio manualmente.
+5. Escoge si el límite será diario, semanal, mensual, por horario, por intervalos o bloqueo permanente; configura el presupuesto en minutos u horas, y pulsa **Guardar regla**.
+6. En **Resumen**, revisa el contador cada segundo y edita o elimina una regla cuando quieras. El **monitor flotante** permite observar el tiempo sin quitar el foco al navegador.
+7. En **Preferencias**, configura la reproducción, el inicio con Windows y el seguimiento opcional de una ventana en la segunda pantalla. Para salir usa **Salir por completo**.
 
 Consulta [la prueba guiada de dos minutos](docs/GUIA_PRUEBA_WINDOWS.md) si el contador permanece a cero.
 
-**Alcance:** el contador mide **tiempo de navegador en primer plano**. Si el hub de FocoLocal está por delante de YouTube, **no descontará el tiempo** aunque el vídeo continúe reproduciéndose. Tampoco contabiliza descargas, API, pestañas ocultas ni actividad en segundo plano. Detectar reproducción de vídeo en segundo plano en todos los navegadores sin extensiones no está implementado.
+**Alcance:** el contador mide por defecto **tiempo de navegador en primer plano**. En modo de seguimiento manual de ventana secundaria puede contabilizar un navegador visible aunque otra aplicación tenga el foco; deja de hacerlo si el PC permanece inactivo durante unos 3 minutos. No mide realmente tu mirada, la actividad de API ni la reproducción en pestañas ocultas.**
 
 ### Para desarrolladores
 
 Requisitos: Go 1.23+ para compilar y Windows para validar la interfaz.
 
 ```powershell
-git clone <URL-DE-TU-REPOSITORIO> FocoLocalDesktop
+git clone https://github.com/SVN11X/foco_local_desktop.git FocoLocalDesktop
 cd FocoLocalDesktop
 go test ./...
 go vet ./...

@@ -44,3 +44,11 @@ Solo el motor de límites es portable. La interfaz depende de Windows y sus arch
 La detección de navegadores mediante UI Automation no está verificada en todas las versiones. Las exclusiones de automatización por ascendencia del proceso son heurísticas. No es control parental invulnerable ni un bloqueador universal de sitios.
 
 Consulta [decisión 0001](decisions/0001-sin-bloqueo-de-red.md) y [matriz de pruebas](TESTING.md).
+
+## Arquitectura de reglas desde v0.3.0
+
+Las reglas contienen el presupuesto en minutos y un `period` (`day`, `week`, `month`, `blocked`, `schedule`, `interval`). El formato anterior (`domain`, `minutes`, `enabled`) se carga como periodo `day`; los contadores antiguos siguen disponibles. El archivo de usuario permanece en `%APPDATA%\FocoLocalDesktop\config.json` aunque se reemplace el ejecutable. `usage_ms` agrupa consumos por día, semana ISO o mes; `intervals` conserva el inicio y duración de las pausas del día.
+
+Windows tiene solo una ventana foreground. El modo de dos monitores permite fijar explícitamente una ventana por HWND/PID, sujeto a validez, visibilidad, actividad reciente y exclusiones de automatización. No identifica la dirección de la mirada; cuando está activado prioriza esa ventana frente a otros navegadores en primer plano. No se guardan referencias de ventanas entre sesiones.
+
+La navegación a la página de bloqueo envía Ctrl+L, espera a que se procese el foco, escribe la URL local con SendInput y, tras otra espera breve, envía Enter. La navegación de la ventana activa sigue protegida por comprobación de HWND/PID. Si el navegador rechaza la secuencia, se conserva la posibilidad de bloqueo visual alternativo.

@@ -55,6 +55,12 @@ var (
 	pRegCloseKey              = advapi32.NewProc("RegCloseKey")
 	pGetAsyncKeyState         = user32.NewProc("GetAsyncKeyState")
 	pKeybdEvent               = user32.NewProc("keybd_event")
+	pEnableWindow             = user32.NewProc("EnableWindow")
+	pIsWindowVisible          = user32.NewProc("IsWindowVisible")
+	pIsIconic                 = user32.NewProc("IsIconic")
+	pMonitorFromWindow        = user32.NewProc("MonitorFromWindow")
+	pGetLastInputInfo         = user32.NewProc("GetLastInputInfo")
+	pGetTickCount64           = kernel32.NewProc("GetTickCount64")
 )
 
 func ptr(s string) *uint16                              { return syscall.StringToUTF16Ptr(s) }
@@ -145,6 +151,10 @@ const (
 	bsPush             = 0
 	bsAutoCheck        = 0x3
 	lbsNotify          = 0x1
+	cbsDropdownList    = 0x0003
+	cbAddString        = 0x0143
+	cbGetCurSel        = 0x0147
+	cbSetCurSel        = 0x014e
 	swHide             = 0
 	swShow             = 5
 	swShowNA           = 8
@@ -176,4 +186,34 @@ func foregroundExe(pid uint32) string {
 		return ""
 	}
 	return syscall.UTF16ToString(buf[:n])
+}
+
+// Secondary-monitor focus is opt-in. A pinned window must remain on a display,
+// visible, not minimized and the PC must have received input recently.
+type lastInputInfo struct {
+	Size uint32
+	Tick uint32
+}
+
+func activeWithin(maxMilliseconds uint64) bool {
+	info := lastInputInfo{Size: 8}
+	if call(pGetLastInputInfo, uintptr(unsafe.Pointer(&info))) == 0 {
+		return false
+	}
+	current := call(pGetTickCount64)
+	last := uint64(info.Tick)
+	// GetLastInputInfo stores a 32-bit tick, so compare using the low 32 bits.
+	elapsed := uint64(uint32(current) - info.Tick)
+	_ = last
+	return elapsed <= maxMilliseconds
+}
+func browserWindowVisible(hwnd uintptr) bool {
+	if hwnd == 0 || call(pIsWindowVisible, hwnd) == 0 || call(pIsIconic, hwnd) != 0 {
+		return false
+	}
+	if call(pMonitorFromWindow, hwnd, 0) == 0 {
+		return false
+	}
+	r := position(hwnd)
+	return r.Right-r.Left >= 240 && r.Bottom-r.Top >= 150
 }

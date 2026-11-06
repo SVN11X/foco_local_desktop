@@ -1,3 +1,24 @@
+## [0.3.0] - 2026-11-06
+
+### Added
+- Nuevo hub de cuatro secciones, tarjetas y botones con iconos de identificación por marca.
+- Biblioteca organizada con 36 sitios: seleccionar una sugerencia solo prepara el editor.
+- Límites diarios, semanales, mensuales, bloqueo permanente, por horario y por intervalos.
+- Presupuestos en minutos u horas, días y selección de meses.
+- Seguimiento manual y opcional de una ventana visible en un segundo monitor, con comprobación de actividad y de automatización.
+- Pruebas de presupuestos, cronogramas, ciclos y renovación de periodos.
+
+### Fixed
+- Separada la activación de la barra de direcciones de la escritura del archivo `file:///` para evitar que Edge busque `ile:///...` en Google.
+- Página de bloqueo muestra mensajes según la modalidad (diario/semanal/mensual/horario/intervalo).
+- Reinicio de contadores correspondiente al periodo activo de cada regla.
+- Mejoras de layout para ajustar la ventana a pantallas más pequeñas.
+
+### Known limitations
+- Compilación cruzada y pruebas unitarias realizadas, sin validación visual/funcional en Windows real.
+- Sin detección ocular: la segunda pantalla se sigue por elección manual.
+- La navegación a un archivo local puede fallar en ciertos navegadores/políticas; se conserva una cubierta visual como alternativa.
+
 ## [0.2.3] - 2026-11-06
 
 ### Diseño y experiencia

@@ -24,7 +24,7 @@ func TestBlockedPageContent(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, want := range []string{"Lo hiciste bien", "youtube.com", "vídeo y el audio", "FOCOLOCAL", "¿Qué puedes hacer ahora?", "about:blank"} {
+	for _, want := range []string{"Un poco de espacio para ti.", "youtube.com", "vídeo y el audio", "FOCOLOCAL", "¿Qué puedes hacer ahora?", "about:blank"} {
 		if !strings.Contains(string(data), want) {
 			t.Errorf("blocked page missing %q", want)
 		}

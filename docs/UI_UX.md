@@ -1,24 +1,14 @@
-# Interfaz FocoLocal v0.2.3
+# Guía de experiencia de usuario — FocoLocal v0.3.0
 
-El objetivo es una interfaz nativa y comprensible que funcione sin extensiones, sin cuentas y sin instalar componentes adicionales. La identidad visual utiliza tarjetas claras, navegación lateral, jerarquía tipográfica y símbolos del sistema, siguiendo las recomendaciones generales de Microsoft para aplicaciones Windows.
+El hub utiliza una jerarquía clara, colores de alto contraste y componentes Win32 que no exigen instalación adicional. Las vistas reducen la carga cognitiva: **Resumen**, **Explorar sitios**, **Crear regla**, **Preferencias**.
 
-## Decisiones de experiencia de usuario
+- La selección de un sitio en la biblioteca **solo prepara un formulario**, nunca activa el bloqueo. Se guardan los cambios exclusivamente al pulsar **Guardar regla**.
+- Los sitios están agrupados por categoría y llevan un identificador visual con colores/abreviaturas locales (no se descargan favicons ni contenido remoto).
+- Las opciones temporales muestran la unidad correspondiente: minutos, horas, diario, semanal, mensual, todo el día, horario o ciclos. Los campos no aplicables aparecen deshabilitados.
+- Los estados usan textos además de color (Activo, Agotado, Pausado), y el contador visual se actualiza cada segundo.
+- Se mantienen teclado y orden natural de tabulación; los botones personalizados dibujan un borde de foco. Se utiliza la fuente Segoe UI disponible en Windows.
+- En la segunda pantalla se ofrece un modo manual, nunca inferencia de mirada; la preferencia no se guarda entre reinicios y requiere ventana visible y actividad reciente.
+- La pantalla de bloqueo es HTML local, accesible en tamaños variables, sin JavaScript, telemetría ni fuentes remotas. Ofrece actividades alternativas y explica el reinicio de la regla.
+- En resoluciones reducidas se ajustan proporcionalmente controles y superficies; los textos más largos pueden necesitar validación adicional con escalado de Windows 125 %/150 %.
 
-- **Pocos pasos:** agregar dominios manualmente o con uno de ocho accesos directos. Se confirma antes de borrar; los accesos directos existentes no sobrescriben límites.
-- **Estado visible:** tres tarjetas muestran cantidad de sitios, tiempo agregado del día y estado general. Lista e indicadores se actualizan cada segundo.
-- **Semántica comprensible:** siempre aparece el dominio y el tipo de acción. El color del estado está acompañado de texto.
-- **Navegación:** campos de edición, botones y casillas conservan el manejo de teclado de Win32. En los botones personalizados el foco se dibuja explícitamente.
-- **Privacidad:** la interfaz no utiliza recursos web, iconos descargados, telemetría, frameworks embebidos ni APIs de cuentas.
-- **Rendimiento:** `WM_TIMER` refresca UI a 1 Hz; el scanner conserva su ritmo separado de 1,3 segundos. Las reglas se evalúan solo con muestra vigente en la ventana de navegador activa.
-- **Bloqueo amable:** archivo HTML local, adaptable a pantalla pequeña, con alternativas de uso del tiempo y sin JavaScript ni trackers.
-- **Transparencia:** el límite de primer plano no demuestra actividad humana real; un vídeo en pantalla puede estar contando aunque no se pulse una tecla. El tiempo en segundo plano no se cuenta.
-
-## Validación pendiente en Windows
-
-La compilación cruzada a Windows x64 no prueba la reproducción visual ni el comportamiento de la UI en todas las escalas. Se recomienda revisar en Windows 10 y Windows 11: escala al 100 % y al 125 %, resolución 1366×768 y superior; foco de teclado de los botones; casillas de verificación en sidebar; contraste en temas de alto contraste; apertura del enlace GitHub; y sustitución de pestaña cuando el contador llega a cero.
-
-## Referencias oficiales
-
-- [Windows apps best practices](https://learn.microsoft.com/en-us/windows/apps/get-started/best-practices)
-- [Windows design guidelines](https://learn.microsoft.com/en-us/windows/apps/design/)
-- [Win32 timers](https://learn.microsoft.com/en-us/windows/win32/winmsg/timers)
+**Pendiente:** validar la interfaz directamente en Windows, lector de pantalla, alto contraste, accesibilidad de la lista de reglas, el icono del ejecutable y localización. Los marcadores gráficos de los sitios son iconos de identificación simples, no logotipos oficiales.

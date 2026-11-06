@@ -21,54 +21,70 @@ type Sample struct {
 	PID                   uint32
 	Browser, Host, Reason string
 	Working               bool
+	Pinned                bool
 	At                    time.Time
 }
 type App struct {
-	store                                                                                                                      *limit.Store
-	main, overlay, monitor                                                                                                     uintptr
-	fieldDomain, fieldMinutes, list, info, active, btnPause, chkAuto, chkSafe, chkStop, overlayTitle, overlayNote, monitorText uintptr
-	statRules, statUsed, statMode                                                                                              uintptr
-	font, bigFont, smallFont, sectionFont, heroFont                                                                            uintptr
-	brushes                                                                                                                    map[uint32]uintptr
-	labelStyles                                                                                                                map[uintptr]labelStyle
-	buttonStyles                                                                                                               map[uintptr]buttonStyle
-	done                                                                                                                       chan struct{}
-	scanDelay                                                                                                                  <-chan time.Time
-	ticker                                                                                                                     *time.Ticker
-	mu                                                                                                                         sync.Mutex
-	sample                                                                                                                     Sample
-	lastBrowserPID                                                                                                             uint32
-	lastBrowserName, lastBrowserHost                                                                                           string
-	lastBrowserAt, suppressUntil                                                                                               time.Time
-	blocked                                                                                                                    string
-	trayReady, quit                                                                                                            bool
-	mutex                                                                                                                      uintptr
-	selectedDomain                                                                                                             string
-	monitorEnabled                                                                                                             bool
-	lastRedirectKey                                                                                                            string
-	lastRedirectAt                                                                                                             time.Time
-	lastSeenBrowser                                                                                                            string
-	seenConsecutive                                                                                                            int
+	scaleX, scaleY                                                                                                                                                                                                           float64
+	store                                                                                                                                                                                                                    *limit.Store
+	main, overlay, monitor                                                                                                                                                                                                   uintptr
+	fieldDomain, fieldMinutes, fieldFrom, fieldTo, fieldSession, fieldBreak, fieldMonths, comboPeriod, comboUnit, comboDays, list, info, active, btnPause, chkAuto, chkSafe, chkStop, overlayTitle, overlayNote, monitorText uintptr
+	statRules, statUsed, statMode                                                                                                                                                                                            uintptr
+	font, bigFont, smallFont, sectionFont, heroFont                                                                                                                                                                          uintptr
+	brushes                                                                                                                                                                                                                  map[uint32]uintptr
+	labelStyles                                                                                                                                                                                                              map[uintptr]labelStyle
+	buttonStyles                                                                                                                                                                                                             map[uintptr]buttonStyle
+	done                                                                                                                                                                                                                     chan struct{}
+	scanDelay                                                                                                                                                                                                                <-chan time.Time
+	ticker                                                                                                                                                                                                                   *time.Ticker
+	mu                                                                                                                                                                                                                       sync.Mutex
+	sample                                                                                                                                                                                                                   Sample
+	lastBrowserPID                                                                                                                                                                                                           uint32
+	lastBrowserWindow, pinnedWindow                                                                                                                                                                                          uintptr
+	pinnedPID                                                                                                                                                                                                                uint32
+	pages                                                                                                                                                                                                                    [4][]uintptr
+	navButtons                                                                                                                                                                                                               [4]uintptr
+	buildPage, page, category                                                                                                                                                                                                int
+	categoryButtons                                                                                                                                                                                                          []uintptr
+	siteButtons                                                                                                                                                                                                              []uintptr
+	lastBrowserName, lastBrowserHost                                                                                                                                                                                         string
+	lastBrowserAt, suppressUntil                                                                                                                                                                                             time.Time
+	blocked                                                                                                                                                                                                                  string
+	trayReady, quit                                                                                                                                                                                                          bool
+	mutex                                                                                                                                                                                                                    uintptr
+	selectedDomain                                                                                                                                                                                                           string
+	monitorEnabled                                                                                                                                                                                                           bool
+	lastRedirectKey                                                                                                                                                                                                          string
+	lastRedirectAt                                                                                                                                                                                                           time.Time
+	lastSeenBrowser                                                                                                                                                                                                          string
+	seenConsecutive                                                                                                                                                                                                          int
 }
 
 var current *App
 
 const (
-	idAdd         = 1001
-	idRemove      = 1002
-	idPause       = 1003
-	idAuto        = 1004
-	idSafe        = 1005
-	idExit        = 1006
-	idReset       = 1007
-	idExclude     = 1008
-	idMonitor     = 1009
-	idStop        = 1010
-	idGitHub      = 1011
-	idPresetStart = 1200
-	idNewTab      = 2001
-	trayClick     = wmApp + 12
-	updated       = wmApp + 10
+	idAdd           = 1001
+	idRemove        = 1002
+	idPause         = 1003
+	idAuto          = 1004
+	idSafe          = 1005
+	idExit          = 1006
+	idReset         = 1007
+	idExclude       = 1008
+	idMonitor       = 1009
+	idStop          = 1010
+	idGitHub        = 1011
+	idPresetStart   = 1200
+	idPageStart     = 1100
+	idCategoryStart = 1500
+	idPeriod        = 1600
+	idPin           = 1601
+	idClear         = 1602
+	idEdit          = 1603
+	idRules         = 1604
+	idNewTab        = 2001
+	trayClick       = wmApp + 12
+	updated         = wmApp + 10
 )
 const title = "FocoLocal Desktop  ·  Tu tiempo, tus reglas"
 const repositoryURL = "https://github.com/SVN11X/foco_local_desktop"
@@ -90,6 +106,9 @@ func (a *App) publish(s Sample) {
 	}
 	if s.PID != 0 {
 		a.lastBrowserPID = s.PID
+		if s.Host != "" {
+			a.lastBrowserWindow = s.Window
+		}
 		a.lastBrowserName = s.Browser
 		if s.Host != "" {
 			a.lastBrowserHost = s.Host
@@ -169,6 +188,16 @@ func mainWnd(hwnd uintptr, msg uint32, w, l uintptr) uintptr {
 			}
 		case idMonitor:
 			a.startMonitor()
+		case idPin:
+			a.togglePinned()
+		case idClear:
+			a.clearEditor()
+		case idEdit:
+			a.editSelected()
+		case idPeriod:
+			a.updateModeInfo()
+		case idRules:
+			a.showPage(0)
 		case idExclude:
 			a.mu.Lock()
 			pid := a.lastBrowserPID
@@ -185,8 +214,17 @@ func mainWnd(hwnd uintptr, msg uint32, w, l uintptr) uintptr {
 		case idExit:
 			call(pDestroyWindow, a.main)
 		}
-		if id >= idPresetStart && id < idPresetStart+len(catalog.Sites) {
-			a.addPreset(catalog.Sites[id-idPresetStart])
+		if id >= idPageStart && id < idPageStart+4 {
+			a.showPage(id - idPageStart)
+		}
+		if id >= idCategoryStart && id < idCategoryStart+len(catalog.Categories) {
+			a.showCategory(id - idCategoryStart)
+		}
+		if id >= idPresetStart && id < idPresetStart+len(a.siteButtons) {
+			picks := catalog.InCategory(a.category)
+			if id-idPresetStart < len(picks) {
+				a.addPreset(catalog.Sites[picks[id-idPresetStart]])
+			}
 		}
 		return 0
 	}
@@ -239,7 +277,7 @@ func Run() error {
 	if e != nil {
 		return e
 	}
-	a := &App{store: store, done: make(chan struct{}), mutex: h}
+	a := &App{store: store, done: make(chan struct{}), mutex: h, buildPage: -1, scaleX: 1, scaleY: 1}
 	current = a
 	a.initUI()
 	if a.main == 0 {
@@ -303,14 +341,23 @@ func (a *App) initUI() {
 	classRegister("FocoLocal.Monitor.v2", syscall.NewCallback(overlayWnd), bg)
 	screenW := int32(call(user32.NewProc("GetSystemMetrics"), 0))
 	screenH := int32(call(user32.NewProc("GetSystemMetrics"), 1))
-	x, y := (screenW-1100)/2, (screenH-748)/2
+	appW, appH := int32(1190), int32(815)
+	if screenW > 100 && screenW-40 < appW {
+		appW = screenW - 40
+	}
+	if screenH > 130 && screenH-72 < appH {
+		appH = screenH - 72
+	}
+	a.scaleX = float64(appW) / 1190
+	a.scaleY = float64(appH) / 815
+	x, y := (screenW-appW)/2, (screenH-appH)/2
 	if x < 0 {
 		x = 0
 	}
 	if y < 0 {
 		y = 0
 	}
-	a.main = create("FocoLocal.Main.v2", title, 0, wsCaption|wsSysmenu|wsMinimize, x, y, 1100, 748, 0, 0)
+	a.main = create("FocoLocal.Main.v2", title, 0, wsCaption|wsSysmenu|wsMinimize, x, y, appW, appH, 0, 0)
 	if a.main == 0 {
 		return
 	}
@@ -318,84 +365,153 @@ func (a *App) initUI() {
 	a.smallFont = makeFont(-14, 400)
 	a.bigFont = makeFont(-28, 700)
 	a.sectionFont = makeFont(-22, 700)
-	a.heroFont = makeFont(-31, 700)
+	a.heroFont = makeFont(-34, 700)
 
-	a.styledLabel("◉  FOCOLOCAL", 25, 28, 190, 36, a.sectionFont, colorWhite, colorSidebar)
-	a.styledLabel("Tu tiempo, tus reglas.", 28, 70, 182, 21, a.smallFont, colorSubtle, colorSidebar)
-	a.styledLabel("ENFOQUE DIARIO", 34, 136, 165, 20, a.smallFont, colorSubtle, colorSidebarSoft)
-	a.styledLabel("Menos distracciones.", 34, 165, 165, 24, a.font, colorWhite, colorSidebarSoft)
-	a.styledLabel("Más tiempo para ti.", 34, 190, 165, 24, a.font, colorWhite, colorSidebarSoft)
-	a.styledLabel("AJUSTES", 27, 235, 170, 20, a.smallFont, colorSubtle, colorSidebar)
-	a.chkSafe = a.control("BUTTON", "Proteger scripts", bsAutoCheck|wsTabstop, 25, 264, 190, 30, idSafe)
-	a.labelColors(a.chkSafe, colorWhite, colorSidebar)
-	a.styledLabel("Python, Node y WebDriver", 47, 296, 160, 19, a.smallFont, colorSubtle, colorSidebar)
-	a.chkStop = a.control("BUTTON", "Detener vídeo y audio", bsAutoCheck|wsTabstop, 25, 329, 190, 30, idStop)
-	a.labelColors(a.chkStop, colorWhite, colorSidebar)
-	a.styledLabel("Sustituye la pestaña", 47, 361, 160, 19, a.smallFont, colorSubtle, colorSidebar)
-	a.chkAuto = a.control("BUTTON", "Iniciar con Windows", bsAutoCheck|wsTabstop, 25, 393, 193, 30, idAuto)
-	a.labelColors(a.chkAuto, colorWhite, colorSidebar)
-	a.btnPause = a.styledButton("Ⅱ  Pausar control", 25, 454, 184, 40, idPause, colorSidebarSoft, colorSidebar, colorWhite, colorSidebarSoft)
-	a.styledButton("↗  Ver repositorio", 25, 525, 184, 40, idGitHub, colorSidebarSoft, colorSidebar, colorWhite, colorSidebarSoft)
-	a.styledButton("Salir de la app", 25, 581, 184, 38, idExit, colorSidebar, colorSidebarSoft, colorSubtle, colorSidebarSoft)
-	a.styledLabel("v0.2.3  ·  LOCAL", 28, 665, 188, 18, a.smallFont, colorSubtle, colorSidebar)
-
-	a.styledLabel("Tu espacio de enfoque", 252, 24, 522, 38, a.heroFont, colorText, colorCanvas)
-	a.styledLabel("Controla tus sitios sin extensiones ni bloqueos de red.", 253, 68, 580, 24, a.font, colorMuted, colorCanvas)
-	a.styledButton("↗  GitHub", 872, 32, 172, 40, idGitHub, colorWhite, colorPaleBlue, colorBlue, colorBorder)
-
-	a.styledLabel("SITIOS CON LÍMITE", 268, 112, 220, 19, a.smallFont, colorMuted, colorWhite)
-	a.statRules = a.styledLabel("0 sitios", 268, 136, 230, 35, a.heroFont, colorText, colorWhite)
-	a.styledLabel("TIEMPO USADO HOY", 542, 112, 211, 19, a.smallFont, colorMuted, colorWhite)
-	a.statUsed = a.styledLabel("00:00", 542, 136, 224, 35, a.heroFont, colorText, colorWhite)
-	a.styledLabel("ESTADO DEL CONTROL", 817, 112, 213, 19, a.smallFont, colorMuted, colorWhite)
-	a.statMode = a.styledLabel("● Activo", 817, 138, 225, 32, a.sectionFont, colorGreen, colorWhite)
-
-	a.styledLabel("Añade un sitio", 287, 205, 432, 31, a.sectionFont, colorText, colorWhite)
-	a.styledLabel("Dominio web", 275, 241, 330, 20, a.smallFont, colorMuted, colorWhite)
-	a.styledLabel("Minutos al día", 648, 241, 130, 20, a.smallFont, colorMuted, colorWhite)
-	a.fieldDomain = a.control("EDIT", "", wsBorder|esAutoHScroll|wsTabstop, 275, 267, 352, 34, 0)
-	a.fieldMinutes = a.control("EDIT", "30", wsBorder|esAutoHScroll|wsTabstop, 648, 267, 116, 34, 0)
-	a.styledButton("＋  Guardar límite", 790, 267, 245, 36, idAdd, colorBlue, colorBlueDark, colorWhite, colorBlue)
-	a.styledLabel("SITIOS PREDEFINIDOS · haz clic para añadir", 275, 311, 590, 20, a.smallFont, colorMuted, colorWhite)
-	for i, p := range catalog.Sites {
-		col, row := i%4, i/4
-		px, py := int32(275+col*191), int32(337+row*35)
-		a.styledButton("＋  "+p.Name, px, py, 176, 29, idPresetStart+i, colorPaleBlue, colorBorder, colorBlue, colorPaleBlue)
+	a.styledLabel("◉  FOCOLOCAL", 24, 29, 193, 36, a.sectionFont, colorWhite, colorSidebar)
+	a.styledLabel("MENOS RUIDO. MÁS VIDA.", 29, 71, 190, 21, a.smallFont, colorSubtle, colorSidebar)
+	a.styledLabel("TU ESPACIO", 27, 133, 180, 20, a.smallFont, colorSubtle, colorSidebar)
+	nav := []string{"▦  Resumen", "◈  Explorar sitios", "⊕  Crear regla", "⚙  Preferencias"}
+	for i, label := range nav {
+		a.navButtons[i] = a.styledButton(label, 19, int32(165+i*56), 199, 47, idPageStart+i, colorSidebar, colorSidebarSoft, colorWhite, colorSidebar)
 	}
+	a.styledLabel("CONTROL LOCAL", 29, 432, 184, 19, a.smallFont, colorSubtle, colorSidebar)
+	a.styledLabel("Sin extensiones", 29, 461, 183, 23, a.font, colorWhite, colorSidebar)
+	a.styledLabel("Sin cortar Internet", 29, 486, 183, 21, a.smallFont, colorSubtle, colorSidebar)
+	a.btnPause = a.styledButton("Ⅱ  Pausar control", 19, 567, 199, 44, idPause, colorSidebarSoft, colorSidebar, colorWhite, colorSidebarSoft)
+	a.styledButton("↗  Repositorio GitHub", 19, 628, 199, 41, idGitHub, colorSidebarSoft, colorSidebar, colorWhite, colorSidebarSoft)
+	a.styledButton("Salir por completo", 19, 680, 199, 41, idExit, colorSidebar, colorSidebarSoft, colorSubtle, colorSidebarSoft)
+	a.styledLabel("v0.3.0  •  LOCAL", 29, 740, 186, 19, a.smallFont, colorSubtle, colorSidebar)
+	a.styledLabel("FOCOLOCAL DESKTOP", 269, 29, 245, 17, a.smallFont, colorBlue, colorCanvas)
+	a.styledLabel("Tu tiempo, mejor utilizado", 268, 53, 622, 45, a.heroFont, colorText, colorCanvas)
+	a.styledLabel("Gestiona distracciones sin afectar tus proyectos ni tu privacidad.", 271, 101, 695, 23, a.font, colorMuted, colorCanvas)
+	a.styledButton("↗  Abrir GitHub", 980, 52, 159, 39, idGitHub, colorWhite, colorPaleBlue, colorBlue, colorBorder)
 
-	a.styledLabel("Tus límites diarios", 273, 423, 630, 30, a.sectionFont, colorText, colorWhite)
-	a.styledLabel("Tiempo compartido entre navegadores; actualizado cada segundo.", 274, 454, 670, 19, a.smallFont, colorMuted, colorWhite)
-	a.list = a.control("LISTBOX", "", wsBorder|wsVScroll|lbsNotify|wsTabstop, 275, 478, 760, 63, 0)
-	a.styledButton("Eliminar seleccionado", 275, 548, 217, 33, idRemove, colorWhite, colorPaleBlue, colorError, colorBorder)
-	a.styledButton("Reiniciar contadores", 502, 548, 227, 33, idReset, colorWhite, colorPaleBlue, colorText, colorBorder)
-	a.styledButton("Proteger último PID", 800, 548, 235, 33, idExclude, colorWhite, colorPaleBlue, colorText, colorBorder)
+	// Resumen
+	a.buildPage = 0
+	a.styledLabel("SITIOS CONTROLADOS", 282, 166, 225, 20, a.smallFont, colorMuted, colorWhite)
+	a.statRules = a.styledLabel("0 sitios", 282, 192, 240, 38, a.heroFont, colorText, colorWhite)
+	a.styledLabel("TIEMPO CONSUMIDO", 572, 166, 230, 20, a.smallFont, colorMuted, colorWhite)
+	a.statUsed = a.styledLabel("00:00", 573, 192, 235, 38, a.heroFont, colorText, colorWhite)
+	a.styledLabel("ESTADO ACTUAL", 869, 166, 235, 20, a.smallFont, colorMuted, colorWhite)
+	a.statMode = a.styledLabel("● Activo", 869, 194, 218, 34, a.sectionFont, colorGreen, colorWhite)
+	a.styledLabel("Tus reglas de navegación", 285, 281, 520, 34, a.sectionFont, colorText, colorWhite)
+	a.styledLabel("Selecciona una regla para editarla o quitarla.", 285, 316, 720, 22, a.smallFont, colorMuted, colorWhite)
+	a.list = a.control("LISTBOX", "", wsBorder|wsVScroll|lbsNotify|wsTabstop, 286, 354, 826, 142, 0)
+	a.styledButton("✎  Editar selección", 287, 510, 237, 43, idEdit, colorPaleBlue, colorBorder, colorBlue, colorPaleBlue)
+	a.styledButton("−  Eliminar", 539, 510, 183, 43, idRemove, colorWhite, colorPaleBlue, colorError, colorBorder)
+	a.styledButton("↻  Reiniciar contadores", 735, 510, 243, 43, idReset, colorWhite, colorPaleBlue, colorText, colorBorder)
+	a.styledLabel("Actividad en directo", 286, 606, 400, 29, a.sectionFont, colorText, colorWhite)
+	a.active = a.styledLabel("Esperando actividad del navegador...", 286, 645, 540, 51, a.font, colorText, colorWhite)
+	a.styledButton("◷  Monitor flotante", 876, 638, 235, 42, idMonitor, colorPaleGreen, colorBorder, colorGreen, colorPaleGreen)
+	a.styledButton("⊞  Seguir otra pantalla", 876, 689, 235, 42, idPin, colorPaleBlue, colorBorder, colorBlue, colorPaleBlue)
+	a.info = a.styledLabel("Cuenta únicamente uso interactivo o ventanas seguidas por ti.", 283, 719, 577, 32, a.smallFont, colorMuted, colorWhite)
 
-	a.styledLabel("ACTIVIDAD EN DIRECTO", 274, 609, 470, 21, a.smallFont, colorMuted, colorWhite)
-	a.active = a.styledLabel("Esperando navegador activo...", 274, 637, 537, 43, a.font, colorText, colorWhite)
-	a.styledButton("◷  Monitor flotante", 836, 641, 198, 39, idMonitor, colorPaleGreen, colorBorder, colorGreen, colorPaleGreen)
-	a.info = a.styledLabel("Solo cuenta mientras el navegador está en primer plano; no cuenta pestañas ocultas.", 274, 682, 773, 18, a.smallFont, colorMuted, colorWhite)
+	// Biblioteca por categorías; los botones solo preparan el formulario.
+	a.buildPage = 1
+	a.styledLabel("Descubre y elige", 288, 161, 500, 34, a.sectionFont, colorText, colorWhite)
+	a.styledLabel("Seleccionar un sitio NO lo activa; primero define cómo limitarlo.", 289, 199, 725, 23, a.font, colorMuted, colorWhite)
+	for i, cat := range catalog.Categories {
+		col, row := i%3, i/3
+		x, y := int32(285+col*282), int32(248+row*48)
+		a.categoryButtons = append(a.categoryButtons, a.styledButton(cat, x, y, 265, 40, idCategoryStart+i, colorWhite, colorPaleBlue, colorText, colorBorder))
+	}
+	for i := 0; i < 6; i++ {
+		col, row := i%3, i/3
+		x, y := int32(285+col*282), int32(387+row*109)
+		// six reusable buttons; domain assignment is changed by showCategory.
+		btn := a.styledButton("", x, y, 265, 91, idPresetStart+i, colorWhite, colorPaleBlue, colorText, colorBorder)
+		a.siteButtons = append(a.siteButtons, btn)
+	}
+	a.styledLabel("Cómo funciona", 290, 641, 320, 28, a.sectionFont, colorText, colorWhite)
+	a.styledLabel("1. Elige un sitio.     2. Ajusta el horario o presupuesto.     3. Guarda tu regla.", 290, 681, 790, 24, a.font, colorText, colorWhite)
+	a.styledLabel("Más de 30 opciones locales, sin cargar iconos ni datos desde Internet.", 290, 715, 777, 20, a.smallFont, colorMuted, colorWhite)
 
-	a.overlay = create("FocoLocal.Overlay.v2", "Límite diario alcanzado", exToolWindow|exTopMost|exNoActivate, wsPopup|wsVisible, 0, 0, 500, 400, 0, 0)
+	// Editor; soporta todas las modalidades sin extensiones.
+	a.buildPage = 2
+	a.styledLabel("Diseña tu regla", 288, 160, 500, 34, a.sectionFont, colorText, colorWhite)
+	a.styledLabel("Nada se aplicará hasta que pulses Guardar regla.", 290, 198, 780, 22, a.font, colorMuted, colorWhite)
+	a.styledLabel("SITIO O DOMINIO", 290, 255, 370, 19, a.smallFont, colorMuted, colorWhite)
+	a.fieldDomain = a.control("EDIT", "", wsBorder|esAutoHScroll|wsTabstop, 290, 282, 524, 39, 0)
+	a.styledLabel("TIPO DE REGLA", 834, 255, 282, 19, a.smallFont, colorMuted, colorWhite)
+	a.comboPeriod = a.control("COMBOBOX", "", cbsDropdownList|wsVScroll|wsTabstop, 834, 282, 282, 240, idPeriod)
+	for _, name := range []string{"Diario", "Semanal", "Mensual", "Todo el día (bloquear)", "Por horario", "Por intervalos"} {
+		send(a.comboPeriod, cbAddString, 0, su(name))
+	}
+	send(a.comboPeriod, cbSetCurSel, 0, 0)
+	a.styledLabel("PRESUPUESTO DE USO", 290, 358, 375, 19, a.smallFont, colorMuted, colorWhite)
+	a.fieldMinutes = a.control("EDIT", "30", wsBorder|esAutoHScroll|wsTabstop, 290, 386, 193, 37, 0)
+	a.comboUnit = a.control("COMBOBOX", "", cbsDropdownList|wsVScroll|wsTabstop, 493, 386, 178, 160, 0)
+	for _, name := range []string{"Minutos", "Horas"} {
+		send(a.comboUnit, cbAddString, 0, su(name))
+	}
+	send(a.comboUnit, cbSetCurSel, 0, 0)
+	a.styledLabel("DÍAS PERMITIDOS", 718, 358, 385, 19, a.smallFont, colorMuted, colorWhite)
+	a.comboDays = a.control("COMBOBOX", "", cbsDropdownList|wsVScroll|wsTabstop, 718, 386, 397, 160, 0)
+	for _, name := range []string{"Todos los días", "Lunes a viernes", "Sábado y domingo"} {
+		send(a.comboDays, cbAddString, 0, su(name))
+	}
+	send(a.comboDays, cbSetCurSel, 0, 0)
+	a.styledLabel("DESDE (HH:MM)", 289, 462, 190, 20, a.smallFont, colorMuted, colorWhite)
+	a.fieldFrom = a.control("EDIT", "09:00", wsBorder|esAutoHScroll|wsTabstop, 290, 488, 191, 37, 0)
+	a.styledLabel("HASTA (HH:MM)", 497, 462, 190, 20, a.smallFont, colorMuted, colorWhite)
+	a.fieldTo = a.control("EDIT", "18:00", wsBorder|esAutoHScroll|wsTabstop, 499, 488, 191, 37, 0)
+	a.styledLabel("MESES (VACÍO = TODOS)", 717, 462, 390, 20, a.smallFont, colorMuted, colorWhite)
+	a.fieldMonths = a.control("EDIT", "", wsBorder|esAutoHScroll|wsTabstop, 718, 488, 397, 37, 0)
+	a.styledLabel("Ej.: 1,2,12 o 4-9", 719, 533, 387, 19, a.smallFont, colorMuted, colorWhite)
+	a.styledLabel("USO POR TRAMO (MIN)", 290, 558, 255, 20, a.smallFont, colorMuted, colorWhite)
+	a.fieldSession = a.control("EDIT", "25", wsBorder|esAutoHScroll|wsTabstop, 290, 585, 194, 37, 0)
+	a.styledLabel("DESCANSO (MIN)", 498, 558, 230, 20, a.smallFont, colorMuted, colorWhite)
+	a.fieldBreak = a.control("EDIT", "5", wsBorder|esAutoHScroll|wsTabstop, 499, 585, 194, 37, 0)
+	a.styledLabel("Modalidad: uso diario, semanal, mensual, horario o ciclos de pausa.", 291, 641, 819, 24, a.font, colorMuted, colorWhite)
+	a.styledButton("✓  Guardar regla", 287, 680, 297, 50, idAdd, colorBlue, colorBlueDark, colorWhite, colorBlue)
+	a.styledButton("Limpiar formulario", 598, 680, 251, 50, idClear, colorWhite, colorPaleBlue, colorText, colorBorder)
+	a.styledButton("Volver a mis reglas", 861, 680, 254, 50, idRules, colorWhite, colorPaleBlue, colorBlue, colorBorder)
+
+	// Preferencias y transparencia.
+	a.buildPage = 3
+	a.styledLabel("Control y privacidad", 290, 165, 560, 34, a.sectionFont, colorText, colorWhite)
+	a.styledLabel("Decide cómo trabaja FocoLocal. Los cambios quedan guardados en tu equipo.", 290, 206, 796, 23, a.font, colorMuted, colorWhite)
+	a.chkSafe = a.control("BUTTON", "Excluir scripts y automatizaciones (Python, Node, WebDriver)", bsAutoCheck|wsTabstop, 296, 279, 794, 31, idSafe)
+	a.labelColors(a.chkSafe, colorText, colorWhite)
+	a.styledLabel("No bloqueamos procesos por DNS, proxy o firewall.", 323, 314, 758, 25, a.smallFont, colorMuted, colorWhite)
+	a.chkStop = a.control("BUTTON", "Detener vídeo y audio al agotar el tiempo", bsAutoCheck|wsTabstop, 296, 365, 794, 31, idStop)
+	a.labelColors(a.chkStop, colorText, colorWhite)
+	a.styledLabel("Sustituye la pestaña activa por una página local amable.", 323, 400, 755, 25, a.smallFont, colorMuted, colorWhite)
+	a.chkAuto = a.control("BUTTON", "Abrir automáticamente con Windows", bsAutoCheck|wsTabstop, 296, 454, 794, 31, idAuto)
+	a.labelColors(a.chkAuto, colorText, colorWhite)
+	a.styledLabel("Puedes salir completamente desde la barra lateral.", 323, 491, 755, 23, a.smallFont, colorMuted, colorWhite)
+	a.styledLabel("DOS MONITORES", 295, 546, 445, 21, a.smallFont, colorMuted, colorWhite)
+	a.styledButton("⊞  Seguir / dejar de seguir ventana", 295, 580, 380, 48, idPin, colorPaleBlue, colorBorder, colorBlue, colorPaleBlue)
+	a.styledLabel("Cuenta una ventana elegida aunque otra esté en primer plano,", 296, 643, 803, 23, a.font, colorText, colorWhite)
+	a.styledLabel("solo si sigue visible y hay actividad reciente en el PC.", 296, 669, 802, 22, a.smallFont, colorMuted, colorWhite)
+	a.styledLabel("No detecta la mirada. Las exclusiones de scripts siguen vigentes.", 296, 709, 790, 20, a.smallFont, colorMuted, colorWhite)
+	a.buildPage = -1
+	a.overlay = create("FocoLocal.Overlay.v2", "Límite alcanzado", exToolWindow|exTopMost|exNoActivate, wsPopup, 0, 0, 500, 400, 0, 0)
 	show(a.overlay, swHide)
-	a.overlayTitle = a.overlayLabel("Tu tiempo terminó por hoy", 220, 145, 760, 58, true)
-	a.overlayNote = a.overlayLabel("Puedes continuar con otra actividad.", 220, 225, 760, 100, false)
-	a.overlayControl("BUTTON", "Abrir una pestaña nueva", 0, 220, 350, 340, 46, idNewTab)
-
+	a.overlayTitle = a.overlayLabel("Tiempo de descanso", 220, 145, 760, 58, true)
+	a.overlayNote = a.overlayLabel("Puedes cambiar de actividad.", 220, 225, 760, 100, false)
+	a.overlayControl("BUTTON", "Abrir otra pestaña", 0, 220, 350, 340, 46, idNewTab)
 	mx := screenW - 515
 	if mx < 0 {
 		mx = 0
 	}
 	a.monitor = create("FocoLocal.Monitor.v2", "Monitor FocoLocal", exToolWindow|exTopMost|exNoActivate, wsPopup, mx, 40, 490, 94, 0, 0)
 	if a.monitor != 0 {
-		a.monitorText = create("STATIC", "Monitor FocoLocal: esperando navegador...", 0, wsVisible|wsChild|ssLeft, 12, 8, 465, 80, a.monitor, 0)
+		a.monitorText = create("STATIC", "Monitor: esperando navegador...", 0, wsVisible|wsChild|ssLeft, 12, 8, 465, 80, a.monitor, 0)
 		setFont(a.monitorText, a.font)
 		show(a.monitor, swHide)
 	}
+	a.showCategory(0)
+	a.showPage(0)
+	a.updateModeInfo()
 	a.tray(0)
 }
 
 func (a *App) control(class, text string, style uint32, x, y, w, h int32, id int) uintptr {
-	hwnd := create(class, text, 0, wsVisible|wsChild|style, x, y, w, h, a.main, uintptr(id))
+	hwnd := create(class, text, 0, wsVisible|wsChild|style, a.sx(x), a.sy(y), a.sx(w), a.sy(h), a.main, uintptr(id))
+	if a.buildPage >= 0 && a.buildPage < 4 {
+		a.pages[a.buildPage] = append(a.pages[a.buildPage], hwnd)
+	}
 	setFont(hwnd, a.font)
 	return hwnd
 }
@@ -424,38 +540,67 @@ func (a *App) openRepository() {
 	}
 }
 func (a *App) addPreset(p catalog.Preset) {
+	// A new catalog selection must not inherit days/months/sessions from
+	// the previously edited rule; there are no hidden active settings.
+	a.clearEditor()
+	text(a.fieldDomain, p.Domain)
+	// The catalog never enables, creates or updates a rule automatically.
 	cfg, _ := a.store.Snapshot(time.Now())
 	for _, r := range cfg.Rules {
 		if r.Domain == p.Domain {
-			text(a.fieldDomain, p.Domain)
-			text(a.fieldMinutes, strconv.Itoa(r.Minutes))
-			text(a.info, "Este sitio ya está en tu lista. Modifica los minutos arriba y pulsa Guardar límite.")
+			a.populateRule(r)
+			a.showPage(2)
 			return
 		}
 	}
-	if err := a.store.Add(p.Domain, p.Minutes); err != nil {
+	send(a.comboPeriod, cbSetCurSel, 0, 0)
+	send(a.comboUnit, cbSetCurSel, 0, 0)
+	text(a.fieldMinutes, strconv.Itoa(p.Minutes))
+	a.updateModeInfo()
+	a.showPage(2)
+}
+
+func (a *App) addRule() {
+	amount, err := strconv.Atoi(strings.TrimSpace(getText(a.fieldMinutes)))
+	if err != nil {
+		alert(a.main, "Ingresa una cantidad de tiempo válida.")
+		return
+	}
+	if int(send(a.comboUnit, cbGetCurSel, 0, 0)) == 1 {
+		amount *= 60
+	}
+	modes := []string{"day", "week", "month", "blocked", "schedule", "interval"}
+	idx := int(send(a.comboPeriod, cbGetCurSel, 0, 0))
+	if idx < 0 || idx >= len(modes) {
+		idx = 0
+	}
+	days := uint8(0)
+	switch int(send(a.comboDays, cbGetCurSel, 0, 0)) {
+	case 1:
+		days = 0b0111110
+	case 2:
+		days = 0b1000001
+	}
+	months, e := parseMonths(getText(a.fieldMonths))
+	if e != nil {
+		alert(a.main, e.Error())
+		return
+	}
+	r := limit.Rule{Domain: getText(a.fieldDomain), Minutes: amount, Enabled: true, Period: modes[idx],
+		From: strings.TrimSpace(getText(a.fieldFrom)), To: strings.TrimSpace(getText(a.fieldTo)), Weekdays: days, Months: months}
+	r.SessionMinutes, _ = strconv.Atoi(strings.TrimSpace(getText(a.fieldSession)))
+	r.BreakMinutes, _ = strconv.Atoi(strings.TrimSpace(getText(a.fieldBreak)))
+	if r.Period == "blocked" {
+		r.Minutes = 0
+	}
+	if err = a.store.UpsertRule(r); err != nil {
 		alert(a.main, err.Error())
 		return
 	}
 	a.save()
 	a.refreshRules()
-	text(a.info, fmt.Sprintf("%s añadido con %d minutos diarios. Puedes cambiar su límite en cualquier momento.", p.Name, p.Minutes))
-}
-func (a *App) addRule() {
-	domain := getText(a.fieldDomain)
-	minutes, e := strconv.Atoi(strings.TrimSpace(getText(a.fieldMinutes)))
-	if e != nil {
-		alert(a.main, "Ingresa un número de minutos válido.")
-		return
-	}
-	if e = a.store.Add(domain, minutes); e != nil {
-		alert(a.main, e.Error())
-		return
-	}
-	text(a.fieldDomain, "")
-	a.save()
-	a.refreshRules()
-	text(a.info, "Límite guardado. Solo se descuenta tiempo con el navegador activo.")
+	a.showPage(0)
+	text(a.info, "Guardado: "+limit.NormalizeDomain(r.Domain)+". La regla ya está activa.")
 }
 func (a *App) selected() string {
 	idx := int(send(a.list, lbGetCurSel, 0, 0))
@@ -532,13 +677,17 @@ func (a *App) refreshRules() {
 		if !r.Enabled {
 			state = "Ⅱ Pausado"
 		}
-		if spent >= budget {
+		if budget > 0 && spent >= budget {
 			state = "✓ Agotado"
 		}
 		if r.Enabled {
 			activeCount++
 		}
-		line := fmt.Sprintf("%-25s  %4d min/día    ·    usado %s    ·    queda %s    ·    %s", r.Domain, r.Minutes, formatDuration(spent), formatDuration(remaining), state)
+		suffix := r.Description()
+		if r.Period == "blocked" {
+			state = "⛔ Bloqueado"
+		}
+		line := fmt.Sprintf("%-26s   %-22s   %s / %s   ·   %s", r.Domain, suffix, formatDuration(spent), formatDuration(budget), state)
 		send(a.list, lbAddString, 0, su(line))
 		if r.Domain == prev {
 			indexToSelect = i
@@ -578,8 +727,8 @@ func (a *App) refreshRules() {
 }
 func (a *App) updateActive() {
 	s := a.sampleCopy()
-	if s.Host != "" && s.Window != 0 && fg() == s.Window && time.Since(s.At) <= 3300*time.Millisecond {
-		text(a.active, fmt.Sprintf("● Contando: %s · %s\r\nActualización cada segundo", s.Browser, s.Host))
+	if s.Host != "" && s.Window != 0 && (fg() == s.Window || s.Pinned) && time.Since(s.At) <= 3300*time.Millisecond {
+		text(a.active, fmt.Sprintf("● Contando: %s · %s\r\n%s", s.Browser, s.Host, map[bool]string{true: "Segunda pantalla • modo manual", false: "Ventana en primer plano • 1 s"}[s.Pinned]))
 		return
 	}
 	if s.PID != 0 {
@@ -624,6 +773,9 @@ func formatDuration(ms int64) string {
 		ms = 0
 	}
 	totalSeconds := ms / 1000
+	if totalSeconds >= 3600 {
+		return fmt.Sprintf("%02d:%02d:%02d", totalSeconds/3600, (totalSeconds/60)%60, totalSeconds%60)
+	}
 	return fmt.Sprintf("%02d:%02d", totalSeconds/60, totalSeconds%60)
 }
 
@@ -632,7 +784,7 @@ func (a *App) updateMonitor() {
 		return
 	}
 	s := a.sampleCopy()
-	if s.Host == "" || s.Window == 0 || fg() != s.Window || time.Since(s.At) > 3300*time.Millisecond {
+	if s.Host == "" || s.Window == 0 || (fg() != s.Window && !s.Pinned) || time.Since(s.At) > 3300*time.Millisecond {
 		reason := s.Reason
 		if reason == "" {
 			reason = "No hay navegador activo"
@@ -668,7 +820,7 @@ func (a *App) tick() {
 	active := fg()
 	host := s.Host
 	// Never charge old pages after focus moved away or the scanner hasn't updated in time.
-	if active != s.Window || time.Since(s.At) > 3300*time.Millisecond {
+	if (active != s.Window && !s.Pinned) || time.Since(s.At) > 3300*time.Millisecond || (s.Pinned && (!browserWindowVisible(s.Window) || !activeWithin(180000))) {
 		host = ""
 	}
 	if s.Window == 0 {
@@ -807,3 +959,6 @@ func (a *App) setAutoStart(enabled bool) error {
 	}
 	return nil
 }
+
+func (a *App) sx(v int32) int32 { return int32(float64(v) * a.scaleX) }
+func (a *App) sy(v int32) int32 { return int32(float64(v) * a.scaleY) }

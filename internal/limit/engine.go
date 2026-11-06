@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"runtime"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -17,19 +18,32 @@ import (
 
 // Rule matches a hostname and every subdomain; rules share one global budget across browsers.
 type Rule struct {
-	Domain  string `json:"domain"`
-	Minutes int    `json:"minutes"`
-	Enabled bool   `json:"enabled"`
+	Domain         string `json:"domain"`
+	Minutes        int    `json:"minutes"`
+	Enabled        bool   `json:"enabled"`
+	Period         string `json:"period,omitempty"` // day, week, month, blocked, schedule, interval
+	From           string `json:"from,omitempty"`
+	To             string `json:"to,omitempty"`
+	Weekdays       uint8  `json:"weekdays,omitempty"` // 0 = all, Sun bit 0 ... Sat bit 6
+	Months         uint16 `json:"months,omitempty"`   // 0 = all, Jan bit 0 ... Dec bit 11
+	SessionMinutes int    `json:"session_minutes,omitempty"`
+	BreakMinutes   int    `json:"break_minutes,omitempty"`
+}
+
+type IntervalState struct {
+	UsedMS  int64 `json:"used_ms"`
+	UntilMS int64 `json:"until_ms"`
 }
 
 type Config struct {
-	Rules          []Rule                      `json:"rules"`
-	Usage          map[string]map[string]int64 `json:"usage_ms"` // YYYY-MM-DD -> domain -> spent milliseconds
-	AutoStart      bool                        `json:"auto_start"`
-	SafeAutomation bool                        `json:"safe_automation"`
-	Paused         bool                        `json:"paused"`
-	BlockMode      string                      `json:"block_mode,omitempty"`    // navigate (stop playback) or overlay (visual only)
-	ExcludedPIDs   []uint32                    `json:"excluded_pids,omitempty"` // ephemeral, not saved
+	Rules          []Rule                              `json:"rules"`
+	Usage          map[string]map[string]int64         `json:"usage_ms"`
+	Intervals      map[string]map[string]IntervalState `json:"intervals,omitempty"` // YYYY-MM-DD -> domain -> spent milliseconds
+	AutoStart      bool                                `json:"auto_start"`
+	SafeAutomation bool                                `json:"safe_automation"`
+	Paused         bool                                `json:"paused"`
+	BlockMode      string                              `json:"block_mode,omitempty"`    // navigate (stop playback) or overlay (visual only)
+	ExcludedPIDs   []uint32                            `json:"excluded_pids,omitempty"` // ephemeral, not saved
 }
 
 type Store struct {
@@ -54,6 +68,9 @@ func Open(path string) (*Store, error) {
 	if s.Data.Usage == nil {
 		s.Data.Usage = make(map[string]map[string]int64)
 	}
+	if s.Data.Intervals == nil {
+		s.Data.Intervals = make(map[string]map[string]IntervalState)
+	}
 	// Existing v0.2.1 configurations opt into stopping playback by default.
 	// The user can switch back to the less intrusive overlay mode in the hub.
 	if s.Data.BlockMode == "" {
@@ -67,6 +84,9 @@ func Open(path string) (*Store, error) {
 	s.Data.ExcludedPIDs = nil // never persist PID exemptions across reboots
 	for i := range s.Data.Rules {
 		s.Data.Rules[i].Domain = NormalizeDomain(s.Data.Rules[i].Domain)
+		if s.Data.Rules[i].Period == "" {
+			s.Data.Rules[i].Period = "day"
+		}
 	}
 	return s, nil
 }
@@ -114,27 +134,133 @@ func HostFromAddress(address string) string {
 func Matches(host, domain string) bool { return host == domain || strings.HasSuffix(host, "."+domain) }
 func dateKey(t time.Time) string       { return t.Local().Format("2006-01-02") }
 
-func (s *Store) Add(raw string, minutes int) error {
-	d := NormalizeDomain(raw)
-	if d == "" {
-		return errors.New("Escribe un dominio válido: youtube.com")
+func periodKey(r Rule, now time.Time) string {
+	switch r.Period {
+	case "week":
+		y, w := now.Local().ISOWeek()
+		return fmt.Sprintf("week-%04d-W%02d", y, w)
+	case "month":
+		return now.Local().Format("month-2006-01")
+	default:
+		return dateKey(now)
 	}
-	if minutes < 1 || minutes > 1440 {
-		return errors.New("El límite debe estar entre 1 y 1440 minutos")
+}
+
+func minutesMax(r Rule) int {
+	switch r.Period {
+	case "week":
+		return 7 * 24 * 60
+	case "month":
+		return 31 * 24 * 60
+	default:
+		return 24 * 60
+	}
+}
+
+func validClock(v string) bool {
+	if len(v) != 5 || v[2] != ':' {
+		return false
+	}
+	h, e1 := strconv.Atoi(v[:2])
+	m, e2 := strconv.Atoi(v[3:])
+	return e1 == nil && e2 == nil && h >= 0 && h <= 23 && m >= 0 && m <= 59
+}
+
+func ValidateRule(r Rule) (Rule, error) {
+	r.Domain = NormalizeDomain(r.Domain)
+	if r.Domain == "" {
+		return r, errors.New("Ingresa un dominio válido (por ejemplo youtube.com)")
+	}
+	if r.Period == "" {
+		r.Period = "day"
+	}
+	switch r.Period {
+	case "day", "week", "month", "blocked", "schedule", "interval":
+	default:
+		return r, errors.New("Selecciona un tipo de límite válido")
+	}
+	if r.Period != "blocked" && (r.Minutes < 1 || r.Minutes > minutesMax(r)) {
+		return r, fmt.Errorf("El límite debe estar entre 1 y %d minutos", minutesMax(r))
+	}
+	if r.Period == "schedule" && (!validClock(r.From) || !validClock(r.To) || r.From == r.To) {
+		return r, errors.New("Horario inválido: usa HH:MM, por ejemplo 09:00 y 18:00")
+	}
+	if r.Period == "interval" && (r.SessionMinutes < 1 || r.SessionMinutes > 240 || r.BreakMinutes < 1 || r.BreakMinutes > 240) {
+		return r, errors.New("Configura intervalos de 1 a 240 minutos de uso y descanso")
+	}
+	if r.Months > 4095 {
+		return r, errors.New("Meses inválidos")
+	}
+	return r, nil
+}
+
+func (s *Store) UpsertRule(rule Rule) error {
+	r, e := ValidateRule(rule)
+	if e != nil {
+		return e
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	for i := range s.Data.Rules {
-		if s.Data.Rules[i].Domain == d {
-			s.Data.Rules[i].Minutes = minutes
-			s.Data.Rules[i].Enabled = true
+		if s.Data.Rules[i].Domain == r.Domain {
+			s.Data.Rules[i] = r
 			s.dirty = true
 			return nil
 		}
 	}
-	s.Data.Rules = append(s.Data.Rules, Rule{d, minutes, true})
+	s.Data.Rules = append(s.Data.Rules, r)
 	s.dirty = true
 	return nil
+}
+func (s *Store) Add(raw string, minutes int) error {
+	return s.UpsertRule(Rule{Domain: raw, Minutes: minutes, Enabled: true, Period: "day"})
+}
+
+func withinSchedule(r Rule, now time.Time) bool {
+	local := now.Local()
+	if r.Months != 0 && r.Months&(1<<uint(local.Month()-1)) == 0 {
+		return false
+	}
+	day := uint(local.Weekday())
+	mins := local.Hour()*60 + local.Minute()
+	if r.Period != "schedule" {
+		return r.Weekdays == 0 || r.Weekdays&(1<<day) != 0
+	}
+	start, _ := strconv.Atoi(r.From[:2])
+	sm, _ := strconv.Atoi(r.From[3:])
+	from := start*60 + sm
+	end, _ := strconv.Atoi(r.To[:2])
+	em, _ := strconv.Atoi(r.To[3:])
+	to := end*60 + em
+	if from < to {
+		return mins >= from && mins < to && (r.Weekdays == 0 || r.Weekdays&(1<<day) != 0)
+	}
+	if mins >= from {
+		return r.Weekdays == 0 || r.Weekdays&(1<<day) != 0
+	}
+	if mins < to {
+		previous := (day + 6) % 7
+		return r.Weekdays == 0 || r.Weekdays&(1<<previous) != 0
+	}
+	return false
+}
+
+// Evaluate a rule before charging; schedule restrictions are independent of time budget.
+func (r Rule) Description() string {
+	switch r.Period {
+	case "week":
+		return "Semanal"
+	case "month":
+		return "Mensual"
+	case "blocked":
+		return "Bloqueo permanente"
+	case "schedule":
+		return "Horario " + r.From + "–" + r.To
+	case "interval":
+		return fmt.Sprintf("Ciclos %dm / %dm pausa", r.SessionMinutes, r.BreakMinutes)
+	default:
+		return "Diario"
+	}
 }
 func (s *Store) Remove(domain string) {
 	s.mu.Lock()
@@ -204,15 +330,15 @@ func (s *Store) Snapshot(t time.Time) (Config, map[string]int64) {
 	cfg.Rules = append([]Rule(nil), s.Data.Rules...)
 	cfg.ExcludedPIDs = append([]uint32(nil), s.Data.ExcludedPIDs...)
 	used := make(map[string]int64)
-	for k, v := range s.Data.Usage[dateKey(t)] {
-		used[k] = v
+	for _, r := range cfg.Rules {
+		used[r.Domain] = s.Data.Usage[periodKey(r, t)][r.Domain]
 	}
 	return cfg, used
 }
 
-// Observe charges elapsed time to one matching rule only while a recognized browser is foreground.
-// Long suspensions are capped to avoid counting idle time while the computer sleeps.
-// More specific domain rules win. Input sampleID includes HWND:PID:hostname to prevent carryover.
+// Observe charges only consecutive samples from the intended, eligible browser window.
+// A schedule outside its time range blocks without debiting the period budget.
+// All rules retain budgets across application restarts and browser changes.
 func (s *Store) Observe(host, sampleID string, now time.Time) (blocked string, usedMS int64, limitMS int64) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -220,10 +346,7 @@ func (s *Store) Observe(host, sampleID string, now time.Time) (blocked string, u
 	if !s.lastTick.IsZero() && s.lastSample == sampleID && sampleID != "" {
 		dt = now.Sub(s.lastTick)
 	}
-	if dt < 0 {
-		dt = 0
-	}
-	if dt > 2*time.Second {
+	if dt < 0 || dt > 2*time.Second {
 		dt = 0
 	}
 	s.lastTick = now
@@ -241,26 +364,71 @@ func (s *Store) Observe(host, sampleID string, now time.Time) (blocked string, u
 		return "", 0, 0
 	}
 	r := s.Data.Rules[idx]
-	day := dateKey(now)
-	if s.Data.Usage[day] == nil {
-		s.Data.Usage[day] = map[string]int64{}
+	key := periodKey(r, now)
+	if s.Data.Usage[key] == nil {
+		s.Data.Usage[key] = make(map[string]int64)
 	}
-	if dt > 0 {
-		s.Data.Usage[day][r.Domain] += dt.Milliseconds()
+	spent := s.Data.Usage[key][r.Domain]
+	cap := int64(r.Minutes) * 60000
+	if r.Period == "blocked" {
+		if withinSchedule(r, now) {
+			return r.Domain, spent, 0
+		}
+		return "", spent, 0
+	}
+	if !withinSchedule(r, now) {
+		return r.Domain, spent, cap
+	}
+	if spent >= cap {
+		return r.Domain, spent, cap
+	}
+	if r.Period == "interval" {
+		day := dateKey(now)
+		if s.Data.Intervals == nil {
+			s.Data.Intervals = make(map[string]map[string]IntervalState)
+		}
+		if s.Data.Intervals[day] == nil {
+			s.Data.Intervals[day] = make(map[string]IntervalState)
+		}
+		state := s.Data.Intervals[day][r.Domain]
+		if state.UntilMS > now.UnixMilli() {
+			return r.Domain, spent, cap
+		}
+		if state.UntilMS > 0 && state.UntilMS <= now.UnixMilli() {
+			state = IntervalState{}
+		}
+		if dt > 0 {
+			delta := dt.Milliseconds()
+			spent += delta
+			state.UsedMS += delta
+			s.dirty = true
+		}
+		if state.UsedMS >= int64(r.SessionMinutes)*60000 {
+			state.UntilMS = now.Add(time.Duration(r.BreakMinutes) * time.Minute).UnixMilli()
+			s.Data.Intervals[day][r.Domain] = state
+			s.Data.Usage[key][r.Domain] = spent
+			return r.Domain, spent, cap
+		}
+		s.Data.Intervals[day][r.Domain] = state
+	} else if dt > 0 {
+		spent += dt.Milliseconds()
 		s.dirty = true
 	}
-	used := s.Data.Usage[day][r.Domain]
-	cap := int64(r.Minutes) * 60 * 1000
-	if used >= cap {
-		return r.Domain, used, cap
+	s.Data.Usage[key][r.Domain] = spent
+	if spent >= cap {
+		return r.Domain, spent, cap
 	}
-	return "", used, cap
+	return "", spent, cap
 }
 func (s *Store) ResetTimer(now time.Time) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	day := dateKey(now)
-	delete(s.Data.Usage, day)
+	for _, r := range s.Data.Rules {
+		key := periodKey(r, now)
+		delete(s.Data.Usage[key], r.Domain)
+		delete(s.Data.Intervals[day], r.Domain)
+	}
 	s.lastTick = time.Time{}
 	s.dirty = true
 }
@@ -273,11 +441,31 @@ func (s *Store) Save() error {
 	if err := os.MkdirAll(filepath.Dir(s.Path), 0700); err != nil {
 		return err
 	}
-	// Do not let usage grow without bound: keep a rolling 30-day window.
+	// Keep a bounded local history. Do not drop active weekly/monthly budgets.
 	for day := range s.Data.Usage {
+		switch {
+		case strings.HasPrefix(day, "month-"):
+			d, e := time.ParseInLocation("month-2006-01", day, time.Local)
+			if e != nil || time.Since(d) > 420*24*time.Hour {
+				delete(s.Data.Usage, day)
+			}
+		case strings.HasPrefix(day, "week-"):
+			var year, week int
+			n, e := fmt.Sscanf(day, "week-%d-W%d", &year, &week)
+			if e != nil || n != 2 || year < time.Now().Year()-2 || week < 1 || week > 53 {
+				delete(s.Data.Usage, day)
+			}
+		default:
+			d, e := time.ParseInLocation("2006-01-02", day, time.Local)
+			if e != nil || time.Since(d) > 366*24*time.Hour {
+				delete(s.Data.Usage, day)
+			}
+		}
+	}
+	for day := range s.Data.Intervals {
 		d, e := time.ParseInLocation("2006-01-02", day, time.Local)
 		if e != nil || time.Since(d) > 31*24*time.Hour {
-			delete(s.Data.Usage, day)
+			delete(s.Data.Intervals, day)
 		}
 	}
 	copy := s.Data

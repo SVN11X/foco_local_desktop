@@ -61,24 +61,8 @@ func unicodeInput(ch uint16, released bool) winKeyboardInput {
 // SendInput is an atomic batch to the foreground window's keyboard queue.
 // We never ask to elevate privileges, and refuse to act when the user has
 // switched to another window between the last scan and this tick.
-func navigateForegroundTab(target, destination uintptr, urlString string) bool {
-	if target == 0 || fg() != target || destination == 0 || urlString == "" {
-		return false
-	}
-	if unsafe.Sizeof(winKeyboardInput{}) != 40 { // fails closed if compiled for a different ABI
-		return false
-	}
-	events := make([]winKeyboardInput, 0, 6+len(urlString)*2)
-	// Ctrl+L focuses browser address bar; do not touch page content via JS.
-	events = append(events, vkInput(vkControl, false), vkInput(vkL, false), vkInput(vkL, true), vkInput(vkControl, true))
-	for _, ch := range urlString { // Unicode input allows spaces/non-ASCII in file: URLs.
-		if ch > 0xffff { // file: URLs produced by net/url are ASCII escaped
-			return false
-		}
-		events = append(events, unicodeInput(uint16(ch), false), unicodeInput(uint16(ch), true))
-	}
-	events = append(events, vkInput(vkReturn, false), vkInput(vkReturn, true))
-	if fg() != target || windowPID(target) != uint32(destination) {
+func sendKeyboardBatch(target uintptr, pid uint32, events []winKeyboardInput) bool {
+	if len(events) == 0 || fg() != target || windowPID(target) != pid {
 		return false
 	}
 	sent := call(pSendInput, uintptr(len(events)), uintptr(unsafe.Pointer(&events[0])), unsafe.Sizeof(events[0]))
@@ -86,7 +70,41 @@ func navigateForegroundTab(target, destination uintptr, urlString string) bool {
 	return sent == uintptr(len(events))
 }
 
+// Browsers apply Ctrl+L asynchronously. Sending the shortcut and first URI
+// character in one SendInput batch occasionally loses the leading 'f' of
+// file:///... and turns the destination into a web search. Synchronize phases.
+// No clipboard changes, extensions, global DNS rules or process termination.
+func navigateForegroundTab(target, destination uintptr, urlString string) bool {
+	pid := uint32(destination)
+	if target == 0 || fg() != target || pid == 0 || urlString == "" {
+		return false
+	}
+	if unsafe.Sizeof(winKeyboardInput{}) != 40 {
+		return false
+	}
+	focus := []winKeyboardInput{vkInput(vkControl, false), vkInput(vkL, false), vkInput(vkL, true), vkInput(vkControl, true)}
+	if !sendKeyboardBatch(target, pid, focus) {
+		return false
+	}
+	time.Sleep(170 * time.Millisecond)
+	events := make([]winKeyboardInput, 0, len(urlString)*2)
+	for _, ch := range urlString {
+		if ch > 0xffff {
+			return false
+		}
+		events = append(events, unicodeInput(uint16(ch), false), unicodeInput(uint16(ch), true))
+	}
+	if !sendKeyboardBatch(target, pid, events) {
+		return false
+	}
+	time.Sleep(100 * time.Millisecond)
+	return sendKeyboardBatch(target, pid, []winKeyboardInput{vkInput(vkReturn, false), vkInput(vkReturn, true)})
+}
+
 func blockedPagePath(configPath, domain string) (string, error) {
+	return blockedPagePathWithMessage(configPath, domain, "Este descanso se renueva según la regla que configuraste.")
+}
+func blockedPagePathWithMessage(configPath, domain, message string) (string, error) {
 	// All domains here originate from validated limit rules. A second check
 	// prevents unexpected path traversal if the caller ever changes.
 	if domain == "" || strings.ContainsAny(domain, `/\\:`) || strings.Contains(domain, "..") {
@@ -97,7 +115,7 @@ func blockedPagePath(configPath, domain string) (string, error) {
 		return "", e
 	}
 	path := filepath.Join(dir, "bloqueado-"+domain+".html")
-	content := blockedPageHTML(domain)
+	content := blockedPageHTMLMessage(domain, message)
 	if e := os.WriteFile(path, []byte(content), 0600); e != nil {
 		return "", e
 	}
@@ -107,11 +125,14 @@ func blockedPagePath(configPath, domain string) (string, error) {
 // This self-contained, read-only HTML is never served over the network. It has
 // no JavaScript, remote fonts, images, analytics or dynamic permissions.
 func blockedPageHTML(domain string) string {
+	return blockedPageHTMLMessage(domain, "Tu descanso se renueva según la regla que configuraste.")
+}
+func blockedPageHTMLMessage(domain, message string) string {
 	const page = `<!doctype html>
 <html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'; object-src 'none'">
 <meta name="color-scheme" content="light">
-<title>Un descanso para ti · FocoLocal</title>
+<title>Tiempo de descanso · FocoLocal</title>
 <style>
 :root{color-scheme:light;--ink:#142744;--sub:#56657d;--line:#e5ebf5;--blue:#2763df;--mint:#0a8069}
 *{box-sizing:border-box}body{margin:0;padding:32px 20px;min-height:100vh;display:grid;place-items:center;background:radial-gradient(circle at 75% 10%,#dbe9ff 0%,transparent 35%),linear-gradient(135deg,#f4f7ff,#eaf7f4);color:var(--ink);font-family:'Segoe UI Variable','Segoe UI',system-ui,sans-serif}
@@ -126,9 +147,9 @@ h1{font-size:clamp(2rem,5vw,3.3rem);letter-spacing:-.035em;line-height:1.12;marg
 </style></head><body><main>
 <div class="brand"><div><span class="brandMark" aria-hidden="true">◷</span>FOCOLOCAL</div><span class="badge">Un descanso digital</span></div>
 <div class="art" aria-hidden="true">☀</div>
-<h1>Lo hiciste bien.<br>Es hora de cambiar de actividad.</h1>
-<p>Ya utilizaste el tiempo que habías reservado hoy para <strong class="domain">{{DOMAIN}}</strong>. Esta pestaña se ha sustituido para detener el vídeo y el audio, sin interrumpir tus otras aplicaciones.</p>
-<p><strong>Tu límite se renueva mañana.</strong> Mientras tanto, puedes aprovechar este momento de otra manera.</p>
+<h1>Un poco de espacio para ti.</h1>
+<p>Has llegado al límite que elegiste para <strong class="domain">{{DOMAIN}}</strong>. FocoLocal ha detenido el contenido de esta pestaña, incluido el vídeo y el audio, sin afectar a tus otras aplicaciones.</p>
+<p><strong>{{MESSAGE}}</strong></p>
 <h2>¿Qué puedes hacer ahora?</h2>
 <div class="grid" role="list">
 <div class="idea" role="listitem"><div class="glyph" aria-hidden="true">☕</div><b>Haz una pausa</b><span>Camina, toma agua o descansa la vista dos minutos.</span></div>
@@ -137,7 +158,8 @@ h1{font-size:clamp(2rem,5vw,3.3rem);letter-spacing:-.035em;line-height:1.12;marg
 </div>
 <div class="foot"><small>Para ajustar tu límite, abre FocoLocal desde el icono de la bandeja de Windows. No bloqueamos Internet ni los procesos automáticos.</small><a class="action" href="about:blank" target="_blank" rel="noopener noreferrer">Abrir pestaña en blanco ↗</a></div>
 </main></body></html>`
-	return strings.ReplaceAll(page, "{{DOMAIN}}", html.EscapeString(domain))
+	result := strings.ReplaceAll(page, "{{DOMAIN}}", html.EscapeString(domain))
+	return strings.ReplaceAll(result, "{{MESSAGE}}", html.EscapeString(message))
 }
 
 func pathToFileURL(path string) string {
@@ -163,7 +185,29 @@ func (a *App) stopBlockedTab(s Sample, rule string, now time.Time) bool {
 	if cfg.SafeAutomation && isAutomated(s.PID) { // defense in depth
 		return false
 	}
-	path, err := blockedPagePath(a.store.Path, rule)
+	message := "Puedes volver a utilizar este sitio cuando tu regla lo permita."
+	cfg, _ = a.store.Snapshot(now)
+	for _, r := range cfg.Rules {
+		if r.Domain != rule {
+			continue
+		}
+		switch r.Period {
+		case "day", "":
+			message = "El contador se reinicia mañana."
+		case "week":
+			message = "Tu presupuesto se renueva el próximo lunes."
+		case "month":
+			message = "Tu presupuesto se renueva el primer día del próximo mes."
+		case "blocked":
+			message = "Este sitio permanecerá bloqueado hasta que cambies su regla."
+		case "schedule":
+			message = "Horario permitido: " + r.From + " a " + r.To + " (si aún queda tiempo disponible)."
+		case "interval":
+			message = fmt.Sprintf("Tómate una pausa de %d minutos por cada %d minutos de uso, si queda presupuesto diario.", r.BreakMinutes, r.SessionMinutes)
+		}
+		break
+	}
+	path, err := blockedPagePathWithMessage(a.store.Path, rule, message)
 	if err != nil {
 		return false
 	}

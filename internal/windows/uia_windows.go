@@ -210,7 +210,20 @@ func runScanner(app *App) {
 		}
 		hwnd := fg()
 		sample := Sample{Working: s != nil, Reason: "Fuera del navegador"}
-		if hwnd == app.main {
+		app.mu.Lock()
+		pin, pinPID := app.pinnedWindow, app.pinnedPID
+		app.mu.Unlock()
+		// A selected window on another display may be counted without changing
+		// keyboard focus; no webcam or gaze inference. Require recent PC activity.
+		pinned := false
+		if pin != 0 && pinPID != 0 && hwnd != pin && hwnd != app.main && hwnd != app.overlay && browserWindowVisible(pin) && windowPID(pin) == pinPID && activeWithin(180000) {
+			// Manual pin takes priority until disabled, even if another
+			// browser is active on the primary monitor. We never pretend to
+			// know which screen the user's eyes are looking at.
+			hwnd = pin
+			pinned = true
+		}
+		if hwnd == app.main && !pinned {
 			sample.Reason = "Hub en primer plano: el navegador no se está contando"
 		} else if hwnd != 0 && hwnd != app.overlay && hwnd != app.monitor {
 			pid := windowPID(hwnd)
@@ -218,6 +231,7 @@ func runScanner(app *App) {
 			if browserName(exe) != "" {
 				sample.PID = pid
 				sample.Window = hwnd
+				sample.Pinned = pinned
 				sample.Browser = browserName(exe)
 				sample.Reason = "Buscando dirección en " + sample.Browser
 				if s != nil {

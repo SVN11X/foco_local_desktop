@@ -21,3 +21,13 @@ FocoLocal Desktop está diseñado para funcionar localmente. No requiere cuentas
 Los contadores y reglas se guardan en `%APPDATA%\FocoLocalDesktop\config.json` y permanecen en el PC. Para eliminar datos, cierra el programa por completo y borra esa carpeta. Los contadores antiguos se depuran de acuerdo con la lógica del motor; consulta el código fuente para el comportamiento exacto.
 
 **Alcance:** descripción del código v0.2.0, no una auditoría independiente. Las versiones modificadas o distribuidas por terceros pueden comportarse de forma diferente.
+
+## Páginas locales de bloqueo (v0.2.2)
+
+Cuando está activado «Detener página y audio», FocoLocal genera una página HTML local
+`bloqueado-<dominio>.html` junto a `config.json` en el directorio de configuración
+del usuario. No tiene JavaScript, recursos de Internet ni telemetría. La página
+contiene únicamente el dominio restringido, no la URL completa, el historial
+ni el contenido del sitio. La navegación a este archivo sustituye la pestaña
+activa (puede descartar datos sin guardar) y no bloquea conexiones de otros
+procesos.

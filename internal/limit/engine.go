@@ -28,6 +28,7 @@ type Config struct {
 	AutoStart      bool                        `json:"auto_start"`
 	SafeAutomation bool                        `json:"safe_automation"`
 	Paused         bool                        `json:"paused"`
+	BlockMode      string                      `json:"block_mode,omitempty"`    // navigate (stop playback) or overlay (visual only)
 	ExcludedPIDs   []uint32                    `json:"excluded_pids,omitempty"` // ephemeral, not saved
 }
 
@@ -52,6 +53,16 @@ func Open(path string) (*Store, error) {
 	}
 	if s.Data.Usage == nil {
 		s.Data.Usage = make(map[string]map[string]int64)
+	}
+	// Existing v0.2.1 configurations opt into stopping playback by default.
+	// The user can switch back to the less intrusive overlay mode in the hub.
+	if s.Data.BlockMode == "" {
+		s.Data.BlockMode = "navigate"
+		s.dirty = true
+	}
+	if s.Data.BlockMode != "navigate" && s.Data.BlockMode != "overlay" {
+		s.Data.BlockMode = "overlay" // unknown settings fail conservatively
+		s.dirty = true
 	}
 	s.Data.ExcludedPIDs = nil // never persist PID exemptions across reboots
 	for i := range s.Data.Rules {
@@ -143,6 +154,16 @@ func (s *Store) SetPause(pause bool) {
 	s.Data.Paused = pause
 	s.lastTick = time.Time{}
 	s.dirty = true
+}
+func (s *Store) SetBlockMode(mode string) error {
+	if mode != "navigate" && mode != "overlay" {
+		return errors.New("modo de bloqueo inválido")
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.Data.BlockMode = mode
+	s.dirty = true
+	return nil
 }
 func (s *Store) SetSafeAutomation(safe bool) {
 	s.mu.Lock()

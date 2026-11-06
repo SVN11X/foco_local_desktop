@@ -87,3 +87,30 @@ func TestBackgroundIntervalDoesNotCount(t *testing.T) {
 		t.Fatalf("foreground resume not charged: %v", used)
 	}
 }
+
+func TestBlockModePersistsAndDefaultsToStopPlayback(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.json")
+	s, err := Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if s.Data.BlockMode != "navigate" {
+		t.Fatalf("default block mode: got %q", s.Data.BlockMode)
+	}
+	if err := s.SetBlockMode("overlay"); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.Save(); err != nil {
+		t.Fatal(err)
+	}
+	reopened, err := Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if reopened.Data.BlockMode != "overlay" {
+		t.Fatalf("saved block mode: got %q", reopened.Data.BlockMode)
+	}
+	if err := reopened.SetBlockMode("invalid"); err == nil {
+		t.Fatal("invalid block mode was accepted")
+	}
+}

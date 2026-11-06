@@ -23,26 +23,30 @@ type Sample struct {
 	At                    time.Time
 }
 type App struct {
-	store                                                                                                             *limit.Store
-	main, overlay, monitor                                                                                            uintptr
-	fieldDomain, fieldMinutes, list, info, active, btnPause, chkAuto, chkSafe, overlayTitle, overlayNote, monitorText uintptr
-	font, bigFont                                                                                                     uintptr
-	done                                                                                                              chan struct{}
-	scanDelay                                                                                                         <-chan time.Time
-	ticker                                                                                                            *time.Ticker
-	mu                                                                                                                sync.Mutex
-	sample                                                                                                            Sample
-	lastBrowserPID                                                                                                    uint32
-	lastBrowserName                                                                                                   string
-	lastBrowserHost                                                                                                   string
-	lastBrowserAt                                                                                                     time.Time
-	suppressUntil                                                                                                     time.Time
-	blocked                                                                                                           string
-	trayReady                                                                                                         bool
-	quit                                                                                                              bool
-	mutex                                                                                                             uintptr
-	selectedDomain                                                                                                    string
-	monitorEnabled                                                                                                    bool
+	store                                                                                                                      *limit.Store
+	main, overlay, monitor                                                                                                     uintptr
+	fieldDomain, fieldMinutes, list, info, active, btnPause, chkAuto, chkSafe, chkStop, overlayTitle, overlayNote, monitorText uintptr
+	font, bigFont                                                                                                              uintptr
+	done                                                                                                                       chan struct{}
+	scanDelay                                                                                                                  <-chan time.Time
+	ticker                                                                                                                     *time.Ticker
+	mu                                                                                                                         sync.Mutex
+	sample                                                                                                                     Sample
+	lastBrowserPID                                                                                                             uint32
+	lastBrowserName                                                                                                            string
+	lastBrowserHost                                                                                                            string
+	lastBrowserAt                                                                                                              time.Time
+	suppressUntil                                                                                                              time.Time
+	blocked                                                                                                                    string
+	trayReady                                                                                                                  bool
+	quit                                                                                                                       bool
+	mutex                                                                                                                      uintptr
+	selectedDomain                                                                                                             string
+	monitorEnabled                                                                                                             bool
+	lastRedirectKey                                                                                                            string
+	lastRedirectAt                                                                                                             time.Time
+	lastSeenBrowser                                                                                                            string
+	seenConsecutive                                                                                                            int
 }
 
 var current *App
@@ -57,6 +61,7 @@ const (
 	idReset   = 1007
 	idExclude = 1008
 	idMonitor = 1009
+	idStop    = 1010
 	idNewTab  = 2001
 	trayClick = wmApp + 12
 	updated   = wmApp + 10
@@ -68,6 +73,16 @@ func (a *App) publish(s Sample) {
 	s.At = time.Now()
 	a.mu.Lock()
 	a.sample = s
+	if s.Host != "" && s.Window != 0 {
+		key := fmt.Sprintf("%d:%d:%s", s.Window, s.PID, s.Host)
+		if a.lastSeenBrowser == key {
+			a.seenConsecutive++
+		} else {
+			a.lastSeenBrowser, a.seenConsecutive = key, 1
+		}
+	} else {
+		a.lastSeenBrowser, a.seenConsecutive = "", 0
+	}
 	if s.PID != 0 {
 		a.lastBrowserPID = s.PID
 		a.lastBrowserName = s.Browser
@@ -130,6 +145,8 @@ func mainWnd(hwnd uintptr, msg uint32, w, l uintptr) uintptr {
 			a.toggleAuto()
 		case idSafe:
 			a.toggleSafe()
+		case idStop:
+			a.toggleStop()
 		case idReset:
 			if confirm(a.main, "¿Reiniciar únicamente los contadores de hoy?", "Confirmar reinicio") {
 				a.store.ResetTimer(time.Now())
@@ -261,14 +278,14 @@ func (a *App) initUI() {
 	screenW := int32(call(user32.NewProc("GetSystemMetrics"), 0))
 	screenH := int32(call(user32.NewProc("GetSystemMetrics"), 1))
 	x := (screenW - 910) / 2
-	y := (screenH - 720) / 2
+	y := (screenH - 765) / 2
 	if x < 0 {
 		x = 0
 	}
 	if y < 0 {
 		y = 0
 	}
-	a.main = create("FocoLocal.Main.v2", title, 0, wsCaption|wsSysmenu|wsMinimize, x, y, 910, 720, 0, 0)
+	a.main = create("FocoLocal.Main.v2", title, 0, wsCaption|wsSysmenu|wsMinimize, x, y, 910, 765, 0, 0)
 	if a.main == 0 {
 		return
 	}
@@ -293,7 +310,8 @@ func (a *App) initUI() {
 	a.chkAuto = a.control("BUTTON", "Iniciar con Windows", bsAutoCheck, 24, 617, 250, 30, idAuto)
 	a.control("BUTTON", "Salir por completo", 0, 682, 614, 184, 36, idExit)
 	a.control("BUTTON", "Probar con monitor flotante", 0, 330, 614, 330, 36, idMonitor)
-	a.info = a.label("Solo cuenta el navegador en primer plano, no vídeos reproduciéndose detrás del hub.", 24, 653, 830, 22, false)
+	a.chkStop = a.control("BUTTON", "Detener pagina y audio al agotar el tiempo (se perderan cambios sin guardar)", bsAutoCheck, 24, 652, 835, 29, idStop)
+	a.info = a.label("Modo recomendado: sustituye la pestana agotada por una pagina local. No cierra el navegador.", 24, 692, 830, 22, false)
 	a.overlay = create("FocoLocal.Overlay.v2", "Límite diario alcanzado", exToolWindow|exTopMost|exNoActivate, wsPopup|wsVisible, 0, 0, 500, 400, 0, 0)
 	show(a.overlay, swHide)
 	a.overlayTitle = a.overlayLabel("TIEMPO AGOTADO", 220, 145, 760, 58, true)
@@ -390,6 +408,14 @@ func (a *App) toggleSafe() {
 	a.store.SetSafeAutomation(send(a.chkSafe, bmGetCheck, 0, 0) != 0)
 	a.save()
 }
+func (a *App) toggleStop() {
+	mode := "overlay"
+	if send(a.chkStop, bmGetCheck, 0, 0) != 0 {
+		mode = "navigate"
+	}
+	_ = a.store.SetBlockMode(mode)
+	a.save()
+}
 func (a *App) save() {
 	if e := a.store.Save(); e != nil {
 		alert(a.main, "No se pudo guardar: "+e.Error())
@@ -434,6 +460,11 @@ func (a *App) refreshRules() {
 		send(a.chkSafe, bmSetCheck, 1, 0)
 	} else {
 		send(a.chkSafe, bmSetCheck, 0, 0)
+	}
+	if cfg.BlockMode == "navigate" {
+		send(a.chkStop, bmSetCheck, 1, 0)
+	} else {
+		send(a.chkStop, bmSetCheck, 0, 0)
 	}
 }
 func (a *App) updateActive() {
@@ -548,7 +579,12 @@ func (a *App) tick() {
 	blocked, _, _ := a.store.Observe(host, id, now)
 	if blocked != "" && host != "" && active == s.Window && now.After(a.suppressUntil) {
 		a.blocked = blocked
-		a.showOverlay(s, blocked)
+		cfg, _ := a.store.Snapshot(now)
+		if cfg.BlockMode == "navigate" && a.stopBlockedTab(s, blocked, now) {
+			show(a.overlay, swHide)
+		} else {
+			a.showOverlay(s, blocked) // safe fallback if navigation is unavailable
+		}
 	} else {
 		a.blocked = ""
 		show(a.overlay, swHide)

@@ -34,3 +34,14 @@ El hub de FocoLocal estaba visible encima de YouTube. En v0.2.0 solo se cobraba 
 - Si la cubierta desaparece inesperadamente, guarda el estado observado en el monitor y abre una incidencia de compatibilidad con los pasos reproducibles, sin publicar tus URLs privadas.
 
 La prueba debe hacerse con el navegador **en primer plano**. El monitor está diseñado con `WS_EX_NOACTIVATE` para no robarle el foco.
+
+## Prueba de detención de audio (v0.2.2)
+
+1. Cierra cualquier FocoLocal.exe previo mediante **Salir por completo**. Abre la nueva versión.
+2. Comprueba que esté activada **Detener página y audio al agotar el tiempo**.
+3. Configura `youtube.com` con límite de dos minutos; reinicia contadores solo si deseas empezar la prueba desde cero.
+4. En Edge, reproduce un vídeo y deja la pestaña en primer plano. Usa el monitor flotante si deseas verificar el tiempo.
+5. Al consumirse el límite, la pestaña debería sustituirse por la página local «Tiempo agotado» y detener el audio. El navegador y las demás pestañas seguirán abiertos.
+6. Comprueba que los procesos de Playwright/Python y demás aplicaciones continúen operativos.
+
+**Precaución**: la navegación sustituye el contenido de la pestaña y puede descartar formularios sin guardar. Si necesitas conservarlos, desactiva esta función: el modo visual no detiene el audio. Si Windows bloquea el envío de teclas, la cubierta visual sigue activa como respaldo.

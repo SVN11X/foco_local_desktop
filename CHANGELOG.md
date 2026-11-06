@@ -1,3 +1,17 @@
+## [0.2.2] - 2026-11-06
+
+### Correcciones y seguridad
+- Nuevo modo de bloqueo **Detener página y audio** (predeterminado): sustituye únicamente la pestaña activa agotada por un archivo HTML local, sin extensiones, cambios DNS ni cierre de procesos.
+- Mantiene el modo anterior **Solo bloqueo visual** como alternativa para páginas con formularios o trabajo sin guardar.
+- Acciones de teclado solo si el navegador sigue en primer plano, la identificación es reciente y dos lecturas UIA consecutivas coinciden; las automatizaciones reconocidas siguen excluidas.
+- Nueva pantalla local de bloqueo sin scripts, recursos remotos ni solicitudes de red.
+- El bloqueo visual sigue siendo el respaldo si Windows impide enviar eventos de teclado o el navegador no es compatible.
+
+### Limitaciones
+- Reemplazar una pestaña puede descartar datos o cambios sin guardar en esa página.
+- Las pestañas que ya reproducían audio en segundo plano no se detectan universalmente sin extensiones; un bloqueo de la pestaña activa no garantiza silenciar otras pestañas.
+- El envío de teclas puede fallar por UIPI si el navegador se ejecuta con privilegios distintos o si el usuario cambia de ventana.
+
 ## [0.2.1] - 2026-11-06
 
 ### Corregido

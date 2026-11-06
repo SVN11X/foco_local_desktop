@@ -16,3 +16,7 @@ FocoLocal usa lectura de dominio visible por UI Automation y una cubierta de ven
 **Ventajas:** sin extensiones, sin privilegios elevados ni cambios a la red; las tareas en segundo plano siguen funcionando.
 
 **Limitaciones:** navegadores inaccesibles para UIA quedan fuera; el bloqueo no es infalible, no limita pestañas en segundo plano y una ventana manual controlada por automatización puede verse afectada por la cubierta. Se requiere prueba por navegador.
+
+## Ampliación v0.2.2: detener contenido al agotar tiempo
+
+La cubierta visual no detenía vídeos ni sonido. Se incorpora un modo **optable desde el hub**, activado de manera predeterminada, que reemplaza *solo la pestaña interactiva y en primer plano* por una página `file:` local usando el teclado estándar de Windows. No necesita extensión ni interrumpe la red. La medida puede descartar cambios sin guardar; por ello existe la opción de volver al bloqueo visual. Solo se intenta con detección reciente y estable del dominio y respetando las exclusiones de automatizaciones.

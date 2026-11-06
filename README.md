@@ -85,3 +85,11 @@ Las reglas y los contadores se guardan en `%APPDATA%\FocoLocalDesktop\config.jso
 Implementación propia en **Go (biblioteca estándar), Win32 y Microsoft UI Automation**. Referencias oficiales: [Microsoft UI Automation](https://learn.microsoft.com/windows/win32/winauto/uiauto-uiautomationoverview), [Win32 CreateWindowEx](https://learn.microsoft.com/windows/win32/api/winuser/nf-winuser-createwindowexw), [Go y compilación Windows](https://go.dev/wiki/WindowsCrossCompiling), [buenas prácticas GitHub](https://docs.github.com/en/repositories/creating-and-managing-repositories/best-practices-for-repositories).
 
 Software bajo [licencia MIT](LICENSE). No afiliado a Microsoft, Google, Mozilla o GitHub.
+
+### ¿Qué sucede cuando se agota el tiempo? (v0.2.2)
+
+**Modo predeterminado: detener página y audio.** Cuando se supera un límite en una pestaña **activa**, FocoLocal la redirige a una pantalla HTML local de «Tiempo agotado». Esto detiene el audio de esa pestaña sin cerrar el navegador ni afectar la red, otras aplicaciones o navegadores automatizados que se reconozcan como tales. No instala extensiones.
+
+Este modo **puede descartar formularios y cambios sin guardar** en la pestaña restringida. Para evitarlo, desmarca **«Detener página y audio al agotar el tiempo»** en el hub: mantendrás la cubierta visual anterior, pero los vídeos podrían continuar reproduciéndose por detrás. El programa no detecta de forma universal audio de pestañas en segundo plano.
+
+Por seguridad, la sustitución requiere dos detecciones consecutivas de la misma página y una ventana de navegador que siga en primer plano. Si falla la inyección de teclado, se utiliza la cubierta visual como respaldo. Nunca se usa un firewall, proxy, DNS ni cierre de procesos.

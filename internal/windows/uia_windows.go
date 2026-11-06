@@ -34,37 +34,43 @@ type variant struct {
 }
 
 func ok(hr uintptr) bool { return int32(hr) >= 0 }
-func vcall(obj uintptr, idx uintptr, args ...uintptr) uintptr {
-	if obj == 0 {
+func vcall(obj unsafe.Pointer, idx uintptr, args ...uintptr) uintptr {
+	if obj == nil {
 		return ^uintptr(0)
 	}
-	vt := *(*uintptr)(unsafe.Pointer(obj))
-	fn := *(*uintptr)(unsafe.Pointer(vt + idx*unsafe.Sizeof(uintptr(0))))
+	// COM owns these allocations; preserve their pointer type instead of turning
+	// them into integers and reconstructing pointers from uintptr values.
+	vt := *(*unsafe.Pointer)(obj)
+	if vt == nil {
+		return ^uintptr(0)
+	}
+	fn := *(*uintptr)(unsafe.Add(vt, idx*unsafe.Sizeof(uintptr(0))))
 	params := make([]uintptr, 0, 1+len(args))
-	params = append(params, obj)
+	params = append(params, uintptr(obj))
 	params = append(params, args...)
 	hr, _, _ := syscall.SyscallN(fn, params...)
+	runtime.KeepAlive(obj)
 	return hr
 }
-func release(obj uintptr) {
-	if obj != 0 {
+func release(obj unsafe.Pointer) {
+	if obj != nil {
 		vcall(obj, 2)
 	}
 }
-func bstring(v uintptr) string {
-	if v == 0 {
+func bstring(v unsafe.Pointer) string {
+	if v == nil {
 		return ""
 	}
-	n := call(pBStrLen, v)
+	n := call(pBStrLen, uintptr(v))
 	if n > 8192 {
 		n = 8192
 	}
-	str := syscall.UTF16ToString(unsafe.Slice((*uint16)(unsafe.Pointer(v)), int(n)))
-	call(pBStrFree, v)
+	str := syscall.UTF16ToString(unsafe.Slice((*uint16)(v), int(n)))
+	call(pBStrFree, uintptr(v))
 	return str
 }
-func uiastr(obj uintptr, idx uintptr) string {
-	var b uintptr
+func uiastr(obj unsafe.Pointer, idx uintptr) string {
+	var b unsafe.Pointer
 	if !ok(vcall(obj, idx, uintptr(unsafe.Pointer(&b)))) {
 		return ""
 	}
@@ -72,9 +78,9 @@ func uiastr(obj uintptr, idx uintptr) string {
 }
 
 type scanner struct {
-	auto      uintptr
-	editCond  uintptr
-	comboCond uintptr
+	auto      unsafe.Pointer
+	editCond  unsafe.Pointer
+	comboCond unsafe.Pointer
 }
 
 func newScanner() *scanner {
@@ -82,24 +88,24 @@ func newScanner() *scanner {
 	if !ok(call(pCoInit, 0, 2)) {
 		return nil
 	}
-	var auto uintptr
+	var auto unsafe.Pointer
 	hr := call(pCoCreate, uintptr(unsafe.Pointer(&clsidUI)), 0, 1, uintptr(unsafe.Pointer(&iidUI)), uintptr(unsafe.Pointer(&auto)))
-	if !ok(hr) || auto == 0 {
+	if !ok(hr) || auto == nil {
 		call(pCoUninit)
 		return nil
 	}
-	conditionFor := func(controlType uint64) uintptr {
+	conditionFor := func(controlType uint64) unsafe.Pointer {
 		v := variant{VT: 3, Val: controlType}
-		var c uintptr
+		var c unsafe.Pointer
 		hr := vcall(auto, 23, 30003, uintptr(unsafe.Pointer(&v)), uintptr(unsafe.Pointer(&c)))
 		if !ok(hr) {
-			return 0
+			return nil
 		}
 		return c
 	}
 	edit := conditionFor(50004)  // UIA_EditControlTypeId
 	combo := conditionFor(50003) // UIA_ComboBoxControlTypeId
-	if edit == 0 && combo == 0 {
+	if edit == nil && combo == nil {
 		release(auto)
 		call(pCoUninit)
 		return nil
@@ -133,17 +139,17 @@ func (s *scanner) urlForWindow(hwnd uintptr) string {
 	if s == nil {
 		return ""
 	}
-	var root uintptr
-	if !ok(vcall(s.auto, 6, hwnd, uintptr(unsafe.Pointer(&root)))) || root == 0 {
+	var root unsafe.Pointer
+	if !ok(vcall(s.auto, 6, hwnd, uintptr(unsafe.Pointer(&root)))) || root == nil {
 		return ""
 	}
 	defer release(root)
-	for _, condition := range []uintptr{s.editCond, s.comboCond} {
-		if condition == 0 {
+	for _, condition := range []unsafe.Pointer{s.editCond, s.comboCond} {
+		if condition == nil {
 			continue
 		}
-		var arr uintptr
-		if !ok(vcall(root, 6, 4, condition, uintptr(unsafe.Pointer(&arr)))) || arr == 0 {
+		var arr unsafe.Pointer
+		if !ok(vcall(root, 6, 4, uintptr(condition), uintptr(unsafe.Pointer(&arr)))) || arr == nil {
 			continue
 		}
 		var n int32
@@ -157,14 +163,14 @@ func (s *scanner) urlForWindow(hwnd uintptr) string {
 		bestScore := 0
 		bestHost := ""
 		for i := int32(0); i < n; i++ {
-			var el uintptr
-			if !ok(vcall(arr, 4, uintptr(i), uintptr(unsafe.Pointer(&el)))) || el == 0 {
+			var el unsafe.Pointer
+			if !ok(vcall(arr, 4, uintptr(i), uintptr(unsafe.Pointer(&el)))) || el == nil {
 				continue
 			}
 			score := addressScore(uiastr(el, 23), uiastr(el, 29))
 			if score >= 7 {
-				var pattern uintptr
-				if ok(vcall(el, 16, 10002, uintptr(unsafe.Pointer(&pattern)))) && pattern != 0 {
+				var pattern unsafe.Pointer
+				if ok(vcall(el, 16, 10002, uintptr(unsafe.Pointer(&pattern)))) && pattern != nil {
 					value := uiastr(pattern, 4)
 					release(pattern)
 					host := limit.HostFromAddress(value)

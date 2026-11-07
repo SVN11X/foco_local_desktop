@@ -11,7 +11,7 @@ func TestPresetDomainsAndMinutes(t *testing.T) {
 		t.Fatal("insufficient presets")
 	}
 	for _, p := range Sites {
-		if p.Name == "" || limit.NormalizeDomain(p.Domain) != p.Domain {
+		if p.Name == "" || limit.NormalizeRuleTarget(p.Domain) != p.Domain {
 			t.Errorf("invalid preset: %+v", p)
 		}
 		if seen[p.Domain] {
@@ -21,5 +21,23 @@ func TestPresetDomainsAndMinutes(t *testing.T) {
 			t.Errorf("invalid daily time: %+v", p)
 		}
 		seen[p.Domain] = true
+	}
+}
+
+func TestYouTubePresetsAreIndependent(t *testing.T) {
+	var shorts, videos bool
+	for _, preset := range Sites {
+		if preset.Domain == limit.YouTubeShortsTarget {
+			shorts = preset.Name == "YouTube Shorts" && preset.Minutes > 0
+		}
+		if preset.Domain == "youtube.com" {
+			videos = preset.Name == "YouTube · vídeos" && preset.Minutes > 0
+		}
+	}
+	if !shorts || !videos {
+		t.Fatalf("YouTube presets missing: shorts=%v videos=%v", shorts, videos)
+	}
+	if n := len(InCategory(0)); n != 7 {
+		t.Fatalf("unexpected count in streaming category: %d", n)
 	}
 }

@@ -16,7 +16,8 @@ var Categories = []string{
 }
 
 var Sites = []Preset{
-	{"YouTube", "youtube.com", 30, Categories[0], "▶", [3]uint8{230, 35, 35}},
+	{"YouTube · vídeos", "youtube.com", 30, Categories[0], "▶", [3]uint8{230, 35, 35}},
+	{"YouTube Shorts", "youtube.com/shorts", 15, Categories[0], "▶", [3]uint8{230, 35, 35}},
 	{"Twitch", "twitch.tv", 30, Categories[0], "T", [3]uint8{137, 74, 213}},
 	{"Netflix", "netflix.com", 45, Categories[0], "N", [3]uint8{216, 27, 44}},
 	{"Prime Video", "primevideo.com", 45, Categories[0], "P", [3]uint8{0, 145, 185}},

@@ -4,12 +4,18 @@
 
 ![Go](https://img.shields.io/badge/Go-1.23%2B-00ADD8?logo=go&logoColor=white) ![Platform](https://img.shields.io/badge/Windows-10%20%2F%2011-0078D4?logo=windows&logoColor=white) ![License](https://img.shields.io/badge/license-MIT-555555) ![Status](https://img.shields.io/badge/estado-evaluaci%C3%B3n-orange)
 
-> **Estado: v0.3.2 (corrección del contraste del menú lateral y simplificación de textos; interfaz nativa pendiente de validación visual en Windows).** La detección de YouTube y el bloqueo por sustitución de pestaña fueron probados con versiones anteriores. Esta actualización requiere comprobar la interfaz, la navegación local y el modo de dos pantallas en un Windows real. No garantiza compatibilidad con todos los navegadores ni detección de mirada.
+> **Estado: v0.3.3 (YouTube Shorts con presupuesto independiente y detección por ruta; interfaz nativa pendiente de validación visual en Windows).** La detección de YouTube y el bloqueo por sustitución de pestaña fueron probados con versiones anteriores. Esta actualización requiere comprobar la interfaz, la navegación local y el modo de dos pantallas en un Windows real. No garantiza compatibilidad con todos los navegadores ni detección de mirada.
 
-## Funcionalidades de v0.3.0
+## Funcionalidades de v0.3.3
+
+- **YouTube Shorts separado de YouTube normal:** dos reglas independientes, `youtube.com/shorts` y `youtube.com`. Los Shorts abiertos en `/shorts/ID` (incluidos `www.` y `m.`) se contabilizan solo en Shorts; los vídeos `/watch?v=ID` y las demás páginas de YouTube se contabilizan solo en YouTube normal. **No se suman ambas reglas simultáneamente.**
+- En **Explorar sitios → Vídeo y streaming**, selecciona «YouTube Shorts» o «YouTube · vídeos» para configurar sus límites sin activar automáticamente la regla. Se conserva el presupuesto existente de `youtube.com` (o `www.youtube.com`).
+- **Limitación:** si un Short se reproduce en `/watch?v=ID`, la barra de direcciones no revela que ese vídeo es corto y se contabiliza como vídeo normal. Sin extensiones o integración con YouTube no es posible identificar universalmente el tipo de vídeo.
+
+## Funcionalidades anteriores
 
 - **Una sola aplicación de escritorio**: cuatro vistas (Resumen, Explorar sitios, Crear regla, Preferencias), con navegación e iconos de color propios de cada sitio; sin extensiones, cuentas, servicios de red ni dependencias adicionales.
-- **Biblioteca de 36 sitios** agrupados en vídeo y streaming, redes sociales, comunidades, juegos y ocio, compras, y noticias y trabajo. **Seleccionar NO guarda ni activa la regla**: abre el editor con valores sugeridos.
+- **Biblioteca de 37 opciones** agrupados en vídeo y streaming, redes sociales, comunidades, juegos y ocio, compras, y noticias y trabajo. **Seleccionar NO guarda ni activa la regla**: abre el editor con valores sugeridos.
 - **Modalidades:** minutos y horas, presupuesto diario, semanal y mensual; bloqueo todo el día; franjas horarias con días laborables/fines de semana; intervalos de uso/descanso; restricción de meses (`1,2,12` o `4-9`). Se aplican únicamente tras pulsar **Guardar regla**.
 - **Uso compartido entre navegadores** cuando sus barras de direcciones se pueden leer mediante UI Automation. El contador de la interfaz se actualiza cada segundo.
 - **Dos pantallas:** por defecto **solo cuenta el navegador en primer plano**, esté en el monitor que esté. Puedes seleccionar **Seguir otra pantalla** para dar prioridad a esa ventana visible en otro monitor mientras haya actividad reciente en el PC (aunque el navegador principal tenga foco). **No detecta la mirada** y no pretende medir atención ocular. Para detenerlo, pulsa el mismo botón. Esta selección no se guarda entre reinicios.

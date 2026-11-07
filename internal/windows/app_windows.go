@@ -17,12 +17,12 @@ import (
 )
 
 type Sample struct {
-	Window                uintptr
-	PID                   uint32
-	Browser, Host, Reason string
-	Working               bool
-	Pinned                bool
-	At                    time.Time
+	Window                      uintptr
+	PID                         uint32
+	Browser, Host, Site, Reason string
+	Working                     bool
+	Pinned                      bool
+	At                          time.Time
 }
 type App struct {
 	scaleX, scaleY                                                                                                                                                                                                           float64
@@ -102,7 +102,7 @@ func (a *App) publish(s Sample) {
 	a.mu.Lock()
 	a.sample = s
 	if s.Host != "" && s.Window != 0 {
-		key := fmt.Sprintf("%d:%d:%s", s.Window, s.PID, s.Host)
+		key := fmt.Sprintf("%d:%d:%s", s.Window, s.PID, s.Site)
 		if a.lastSeenBrowser == key {
 			a.seenConsecutive++
 		} else {
@@ -405,7 +405,7 @@ func (a *App) initUI() {
 	a.btnPause = a.sidebarButton("Ⅱ  Pausar control", 19, 468, 199, 44, idPause, colorSidebarSoft, colorSidebar, colorSidebarSoft)
 	a.sidebarButton("↗  Repositorio GitHub", 19, 526, 199, 42, idGitHub, colorSidebarSoft, colorSidebar, colorSidebarSoft)
 	a.sidebarButton("Salir por completo", 19, 583, 199, 42, idExit, colorSidebar, colorSidebarSoft, colorSidebarSoft)
-	a.sidebarLabel("v0.3.2  •  LOCAL", 29, 740, 186, 19, a.smallFont, true)
+	a.sidebarLabel("v0.3.3  •  LOCAL", 29, 740, 186, 19, a.smallFont, true)
 	a.styledLabel("FOCOLOCAL DESKTOP", 269, 29, 245, 17, a.smallFont, colorBlue, colorCanvas)
 	a.styledLabel("Tu tiempo, mejor utilizado", 268, 53, 622, 45, a.heroFont, colorText, colorCanvas)
 	a.styledLabel("Gestiona distracciones sin afectar tus proyectos ni tu privacidad.", 271, 101, 695, 23, a.font, colorMuted, colorCanvas)
@@ -442,11 +442,11 @@ func (a *App) initUI() {
 		x, y := int32(285+col*282), int32(248+row*48)
 		a.categoryButtons = append(a.categoryButtons, a.styledButton(cat, x, y, 265, 40, idCategoryStart+i, colorWhite, colorPaleBlue, colorText, colorBorder))
 	}
-	for i := 0; i < 6; i++ {
-		col, row := i%3, i/3
-		x, y := int32(285+col*282), int32(387+row*109)
-		// six reusable buttons; domain assignment is changed by showCategory.
-		btn := a.styledButton("", x, y, 265, 91, idPresetStart+i, colorWhite, colorPaleBlue, colorText, colorBorder)
+	for i := 0; i < 8; i++ {
+		col, row := i%4, i/4
+		x, y := int32(285+col*211), int32(387+row*109)
+		// Eight reusable tiles accommodate YouTube videos and Shorts separately.
+		btn := a.styledButton("", x, y, 199, 91, idPresetStart+i, colorWhite, colorPaleBlue, colorText, colorBorder)
 		a.siteButtons = append(a.siteButtons, btn)
 	}
 	a.styledLabel("Cómo funciona", 290, 641, 320, 28, a.sectionFont, colorText, colorWhite)
@@ -633,7 +633,7 @@ func (a *App) addRule() {
 	a.save()
 	a.refreshRules()
 	a.showPage(0)
-	text(a.info, "Guardado: "+limit.NormalizeDomain(r.Domain)+". La regla ya está activa.")
+	text(a.info, "Guardado: "+limit.RuleLabel(limit.NormalizeRuleTarget(r.Domain))+". La regla ya está activa.")
 }
 func (a *App) selected() string {
 	idx := int(send(a.list, lbGetCurSel, 0, 0))
@@ -720,7 +720,7 @@ func (a *App) refreshRules() {
 		if r.Period == "blocked" {
 			state = "⛔ Bloqueado"
 		}
-		line := fmt.Sprintf("%-23s   %-19s   hoy %s   |   período %s / %s   |   %s", r.Domain, suffix, formatDuration(today[r.Domain]), formatDuration(spent), formatDuration(budget), state)
+		line := fmt.Sprintf("%-23s   %-19s   hoy %s   |   período %s / %s   |   %s", limit.RuleLabel(r.Domain), suffix, formatDuration(today[r.Domain]), formatDuration(spent), formatDuration(budget), state)
 		send(a.list, lbAddString, 0, su(line))
 		a.ruleRows = append(a.ruleRows, ruleRow{Domain: r.Domain, Period: suffix, Today: today[r.Domain], Spent: spent, Budget: budget, State: state, Enabled: r.Enabled, Blocked: r.Period == "blocked"})
 		if r.Domain == prev {
@@ -786,8 +786,8 @@ func (a *App) refreshRules() {
 }
 func (a *App) updateActive() {
 	s := a.sampleCopy()
-	if s.Host != "" && s.Window != 0 && (fg() == s.Window || s.Pinned) && time.Since(s.At) <= 3300*time.Millisecond {
-		text(a.active, fmt.Sprintf("● Contando: %s · %s\r\n%s", s.Browser, s.Host, map[bool]string{true: "Segunda pantalla • modo manual", false: "Ventana en primer plano • 1 s"}[s.Pinned]))
+	if s.Site != "" && s.Window != 0 && (fg() == s.Window || s.Pinned) && time.Since(s.At) <= 3300*time.Millisecond {
+		text(a.active, fmt.Sprintf("● Contando: %s · %s\r\n%s", s.Browser, limit.RuleLabel(s.Site), map[bool]string{true: "Segunda pantalla • modo manual", false: "Ventana en primer plano • 1 s"}[s.Pinned]))
 		return
 	}
 	if s.PID != 0 {
@@ -855,7 +855,7 @@ func (a *App) updateMonitor() {
 	var domain string
 	var max int64
 	for _, r := range cfg.Rules {
-		if r.Enabled && limit.Matches(s.Host, r.Domain) && len(r.Domain) > len(domain) {
+		if r.Enabled && limit.Matches(s.Site, r.Domain) && len(r.Domain) > len(domain) {
 			domain = r.Domain
 			max = int64(r.Minutes) * 60 * 1000
 		}
@@ -870,27 +870,27 @@ func (a *App) updateMonitor() {
 	}
 	spent := used[domain]
 	remaining := max - spent
-	text(a.monitorText, fmt.Sprintf("FOCOLOCAL | %s | %s\r\nUsados: %s de %s | Restan: %s\r\nEl contador solo avanza con el navegador activo", s.Browser, s.Host, formatDuration(spent), formatDuration(max), formatDuration(remaining)))
+	text(a.monitorText, fmt.Sprintf("FOCOLOCAL | %s | %s\r\nUsados: %s de %s | Restan: %s\r\nEl contador solo avanza con el navegador activo", s.Browser, limit.RuleLabel(domain), formatDuration(spent), formatDuration(max), formatDuration(remaining)))
 }
 
 func (a *App) tick() {
 	s := a.sampleCopy()
 	now := time.Now()
 	active := fg()
-	host := s.Host
+	site := s.Site
 	// Never charge old pages after focus moved away or the scanner hasn't updated in time.
 	if (active != s.Window && !s.Pinned) || time.Since(s.At) > 3300*time.Millisecond || (s.Pinned && (!browserWindowVisible(s.Window) || !activeWithin(180000))) {
-		host = ""
+		site = ""
 	}
 	if s.Window == 0 {
-		host = ""
+		site = ""
 	}
 	id := ""
-	if host != "" {
-		id = fmt.Sprintf("%d:%d:%s", s.Window, s.PID, host)
+	if site != "" {
+		id = fmt.Sprintf("%d:%d:%s", s.Window, s.PID, site)
 	}
-	blocked, _, _ := a.store.Observe(host, id, now)
-	if blocked != "" && host != "" && active == s.Window && now.After(a.suppressUntil) {
+	blocked, _, _ := a.store.Observe(site, id, now)
+	if blocked != "" && site != "" && active == s.Window && now.After(a.suppressUntil) {
 		a.blocked = blocked
 		cfg, _ := a.store.Snapshot(now)
 		if cfg.BlockMode == "navigate" && a.stopBlockedTab(s, blocked, now) {
@@ -922,7 +922,7 @@ func (a *App) showOverlay(s Sample, rule string) {
 		return
 	}
 	// Covers only this interactive window. Does not alter network traffic or other apps.
-	label := fmt.Sprintf("Límite diario de %s agotado", rule)
+	label := fmt.Sprintf("Límite de %s alcanzado", limit.RuleLabel(rule))
 	text(a.overlayTitle, "Un momento para ti")
 	text(a.overlayNote, label+"\r\nPrueba estirarte, beber agua o avanzar en otro proyecto. Mañana tendrás un nuevo límite.")
 	// Center controls relative to window size; keeps other monitors / moving windows in sync.

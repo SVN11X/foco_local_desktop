@@ -33,3 +33,11 @@ activa (puede descartar datos sin guardar) y no bloquea conexiones de otros
 procesos.
 
 En v0.2.3 los sitios predefinidos son una lista estática local y el enlace GitHub solo abre el navegador cuando lo pulsas. No hay consultas automáticas al repositorio.
+
+## YouTube Shorts y privacidad (v0.3.3)
+
+Para distinguir la navegación de Shorts y los vídeos normales, FocoLocal lee
+transitoriamente la dirección que ofrece Windows UI Automation. La reduce a
+`youtube.com/shorts` o al dominio correspondiente **antes de almacenarla**.
+No persiste identificadores de vídeos, títulos, parámetros de URL ni historial
+de Shorts. Los contadores de Shorts y del resto de YouTube son independientes.

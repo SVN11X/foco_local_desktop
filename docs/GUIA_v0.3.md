@@ -21,3 +21,18 @@
 ## Reportar errores
 
 Incluye versión, navegador, dos monitores (sí/no), escalado DPI, tipo de regla y captura. Evita incluir rutas privadas, dominios sensibles o procesos de trabajo internos.
+
+
+## YouTube: vídeos y Shorts por separado (v0.3.3)
+
+1. En **Explorar sitios → Vídeo y streaming**, selecciona **YouTube Shorts**.
+2. Ajusta su presupuesto (por ejemplo, 10 minutos diarios) y pulsa **Guardar regla**.
+3. Repite para **YouTube · vídeos** con otro presupuesto (por ejemplo, 60 minutos).
+4. Abre `https://www.youtube.com/shorts/ID` en el navegador activo para consumir solo Shorts.
+5. Al visitar `https://www.youtube.com/watch?v=ID`, consume solo la regla normal.
+
+Las reglas anteriores de YouTube no se eliminan ni se restablecen.
+**Advertencia:** si una página Shorts se abre en el reproductor normal `/watch`,
+se contará como vídeo normal. La detección depende de que el navegador muestre
+la ruta completa mediante Windows UI Automation. Las pestañas en segundo plano
+no se contabilizan.

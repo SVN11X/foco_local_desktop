@@ -77,6 +77,11 @@ func uiastr(obj unsafe.Pointer, idx uintptr) string {
 	return bstring(b)
 }
 
+type detectedSite struct {
+	Host   string
+	Target string
+}
+
 type scanner struct {
 	auto      unsafe.Pointer
 	editCond  unsafe.Pointer
@@ -135,13 +140,13 @@ func addressScore(name, id string) int {
 	}
 	return 0
 }
-func (s *scanner) urlForWindow(hwnd uintptr) string {
+func (s *scanner) urlForWindow(hwnd uintptr) detectedSite {
 	if s == nil {
-		return ""
+		return detectedSite{}
 	}
 	var root unsafe.Pointer
 	if !ok(vcall(s.auto, 6, hwnd, uintptr(unsafe.Pointer(&root)))) || root == nil {
-		return ""
+		return detectedSite{}
 	}
 	defer release(root)
 	for _, condition := range []unsafe.Pointer{s.editCond, s.comboCond} {
@@ -161,7 +166,7 @@ func (s *scanner) urlForWindow(hwnd uintptr) string {
 			n = 100
 		}
 		bestScore := 0
-		bestHost := ""
+		best := detectedSite{}
 		for i := int32(0); i < n; i++ {
 			var el unsafe.Pointer
 			if !ok(vcall(arr, 4, uintptr(i), uintptr(unsafe.Pointer(&el)))) || el == nil {
@@ -176,7 +181,7 @@ func (s *scanner) urlForWindow(hwnd uintptr) string {
 					host := limit.HostFromAddress(value)
 					if host != "" && score > bestScore {
 						bestScore = score
-						bestHost = host
+						best = detectedSite{Host: host, Target: limit.SiteFromAddress(value)}
 					}
 				}
 			}
@@ -186,11 +191,11 @@ func (s *scanner) urlForWindow(hwnd uintptr) string {
 			}
 		}
 		release(arr)
-		if bestHost != "" {
-			return bestHost
+		if best.Host != "" {
+			return best
 		}
 	}
-	return ""
+	return detectedSite{}
 }
 
 func runScanner(app *App) {
@@ -241,7 +246,8 @@ func runScanner(app *App) {
 					} else if cfg.SafeAutomation && isAutomated(pid) {
 						sample.Reason = "Automatización protegida"
 					} else {
-						sample.Host = s.urlForWindow(hwnd)
+						detected := s.urlForWindow(hwnd)
+						sample.Host, sample.Site = detected.Host, detected.Target
 						if sample.Host == "" {
 							sample.Reason = "No se reconoce la barra de direcciones (UIA)"
 						} else {

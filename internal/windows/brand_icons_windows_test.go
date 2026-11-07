@@ -3,7 +3,7 @@ package windows
 import "testing"
 
 func TestEmbeddedBrandIcons(t *testing.T) {
-	for _, site := range []string{"youtube.com", "www.youtube.com", "instagram.com", "www.instagram.com", "github.com", "linkedin.com", "tiktok.com"} {
+	for _, site := range []string{"youtube.com", "www.youtube.com", "youtube.com/shorts", "instagram.com", "www.instagram.com", "github.com", "linkedin.com", "tiktok.com"} {
 		img, ok := brandAsset(site)
 		if !ok || img == nil {
 			t.Errorf("missing embedded mark for %s", site)

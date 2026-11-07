@@ -18,6 +18,7 @@ var embeddedBrands embed.FS
 
 var brandFiles = map[string]string{
 	"youtube.com":            "youtube.png",
+	"youtube.com/shorts":     "youtube.png",
 	"twitch.tv":              "twitch.png",
 	"instagram.com":          "instagram.png",
 	"tiktok.com":             "tiktok.png",

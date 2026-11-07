@@ -16,7 +16,8 @@ import (
 	"time"
 )
 
-// Rule matches a hostname and every subdomain; rules share one global budget across browsers.
+// Rule matches a hostname and every subdomain, except the special YouTube Shorts route.
+// Each rule has its own shared budget across browsers.
 type Rule struct {
 	Domain         string `json:"domain"`
 	Minutes        int    `json:"minutes"`
@@ -115,7 +116,7 @@ func Open(path string) (*Store, error) {
 	}
 	s.Data.ExcludedPIDs = nil // never persist PID exemptions across reboots
 	for i := range s.Data.Rules {
-		s.Data.Rules[i].Domain = NormalizeDomain(s.Data.Rules[i].Domain)
+		s.Data.Rules[i].Domain = NormalizeRuleTarget(s.Data.Rules[i].Domain)
 		if s.Data.Rules[i].Period == "" {
 			s.Data.Rules[i].Period = "day"
 		}
@@ -163,8 +164,69 @@ func HostFromAddress(address string) string {
 	return NormalizeDomain(u.Hostname())
 }
 
-func Matches(host, domain string) bool { return host == domain || strings.HasSuffix(host, "."+domain) }
-func dateKey(t time.Time) string       { return t.Local().Format("2006-01-02") }
+// YouTubeShortsTarget is a stable rule key, not a full URL or a domain.
+// Other YouTube pages intentionally continue to use their ordinary host keys.
+const YouTubeShortsTarget = "youtube.com/shorts"
+
+// NormalizeRuleTarget accepts domain rules and one explicitly-supported path rule.
+// A URL pointing to a particular Short normalizes to the shared Shorts budget.
+func NormalizeRuleTarget(raw string) string {
+	host := NormalizeDomain(raw)
+	if host == "" {
+		return ""
+	}
+	if SiteFromAddress(raw) == YouTubeShortsTarget {
+		return YouTubeShortsTarget
+	}
+	return host
+}
+
+// SiteFromAddress only returns the hostname or the special Shorts rule key,
+// never a URL, video ID, tracking parameter or browsing history.
+func SiteFromAddress(address string) string {
+	host := HostFromAddress(address)
+	if host == "" {
+		return ""
+	}
+	raw := strings.TrimSpace(address)
+	if !strings.Contains(raw, "://") {
+		raw = "https://" + raw
+	}
+	parsed, err := url.Parse(raw)
+	if err != nil {
+		return ""
+	}
+	// Only the dedicated Shorts player gets a separate budget. YouTube
+	// /watch links—including a Short opened in the regular player—are normal.
+	if Matches(host, "youtube.com") {
+		first := strings.Split(strings.TrimPrefix(parsed.Path, "/"), "/")[0]
+		if first == "shorts" {
+			return YouTubeShortsTarget
+		}
+	}
+	return host
+}
+
+func RuleLabel(key string) string {
+	switch key {
+	case YouTubeShortsTarget:
+		return "YouTube Shorts"
+	case "youtube.com", "www.youtube.com", "m.youtube.com":
+		return "YouTube · vídeos y navegación"
+	default:
+		return key
+	}
+}
+
+// Matches takes a normalized site key, NOT necessarily a hostname. Route
+// rules never overlap the ordinary YouTube rule: a Short consumes only Shorts.
+func Matches(site, domain string) bool {
+	if site == YouTubeShortsTarget || domain == YouTubeShortsTarget {
+		return site == domain
+	}
+	return site == domain || strings.HasSuffix(site, "."+domain)
+}
+func dateKey(t time.Time) string { return t.Local().Format("2006-01-02") }
 
 func periodKey(r Rule, now time.Time) string {
 	switch r.Period {
@@ -199,9 +261,9 @@ func validClock(v string) bool {
 }
 
 func ValidateRule(r Rule) (Rule, error) {
-	r.Domain = NormalizeDomain(r.Domain)
+	r.Domain = NormalizeRuleTarget(r.Domain)
 	if r.Domain == "" {
-		return r, errors.New("Ingresa un dominio válido (por ejemplo youtube.com)")
+		return r, errors.New("Ingresa un dominio válido o selecciona YouTube Shorts")
 	}
 	if r.Period == "" {
 		r.Period = "day"

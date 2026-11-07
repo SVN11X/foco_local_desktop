@@ -2,6 +2,7 @@ package windows
 
 import (
 	"fmt"
+	"focolocal-desktop/internal/limit"
 	"html"
 	"net/url"
 	"os"
@@ -107,15 +108,15 @@ func blockedPagePath(configPath, domain string) (string, error) {
 func blockedPagePathWithMessage(configPath, domain, message string) (string, error) {
 	// All domains here originate from validated limit rules. A second check
 	// prevents unexpected path traversal if the caller ever changes.
-	if domain == "" || strings.ContainsAny(domain, `/\\:`) || strings.Contains(domain, "..") {
+	if domain == "" || limit.NormalizeRuleTarget(domain) != domain {
 		return "", fmt.Errorf("dominio inválido para pantalla de bloqueo")
 	}
 	dir := filepath.Dir(configPath)
 	if e := os.MkdirAll(dir, 0700); e != nil {
 		return "", e
 	}
-	path := filepath.Join(dir, "bloqueado-"+domain+".html")
-	content := blockedPageHTMLMessage(domain, message)
+	path := filepath.Join(dir, "bloqueado-"+strings.ReplaceAll(domain, "/", "-")+".html")
+	content := blockedPageHTMLMessage(limit.RuleLabel(domain), message)
 	if e := os.WriteFile(path, []byte(content), 0600); e != nil {
 		return "", e
 	}
@@ -174,7 +175,7 @@ func pathToFileURL(path string) string {
 }
 
 func (a *App) stopBlockedTab(s Sample, rule string, now time.Time) bool {
-	key := fmt.Sprintf("%d:%d:%s", s.Window, s.PID, s.Host)
+	key := fmt.Sprintf("%d:%d:%s", s.Window, s.PID, s.Site)
 	if a.lastRedirectKey == key && now.Sub(a.lastRedirectAt) < 5*time.Second {
 		return true // scanner can briefly retain the old URL; do not inject twice
 	}

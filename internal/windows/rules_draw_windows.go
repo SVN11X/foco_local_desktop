@@ -2,6 +2,7 @@ package windows
 
 import (
 	"fmt"
+	"focolocal-desktop/internal/limit"
 	"unsafe"
 )
 
@@ -66,7 +67,7 @@ func (a *App) paintRuleRow(l uintptr) uintptr {
 		call(pDrawText, item.DC, su(msg), ^uintptr(0), uintptr(unsafe.Pointer(&r)), dtSingleLine|dtEndEllipsis|dtVCenter)
 		call(pSelectObject, item.DC, old)
 	}
-	drawLine(row.Domain, rect{x, top, x + w/2, top + 22}, a.font, colorText)
+	drawLine(limit.RuleLabel(row.Domain), rect{x, top, x + w/2, top + 22}, a.font, colorText)
 	today := fmt.Sprintf("Hoy: %s", formatDuration(row.Today))
 	drawLine(today, rect{x + w/2, top, x + w - 10, top + 22}, a.font, colorBlue)
 	text := fmt.Sprintf("%s · período: %s / %s · %s", row.Period, formatDuration(row.Spent), formatDuration(row.Budget), row.State)

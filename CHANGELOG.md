@@ -1,3 +1,11 @@
+## [0.3.3] - 2026-11-06
+
+- Nuevos presupuestos independientes «YouTube Shorts» y «YouTube · vídeos»; la detección por URL distingue `/shorts/` de `/watch` sin registrar identificadores de vídeo ni consultas.
+- Los accesos de la biblioteca preparan la regla antes de guardarla; los siete sitios de Vídeo y streaming son visibles.
+- El tiempo consumido en Shorts no se suma al presupuesto de YouTube normal. Las reglas y consumos anteriores se conservan.
+- Pantalla local de bloqueo preparada para la nueva regla con nombre de archivo seguro y título específico.
+- Pruebas de normalización, rutas, uso entre navegadores y persistencia de ambos contadores.
+
 ## v0.3.2 — Corrección de contraste del menú lateral (Windows)
 
 - El menú lateral mantiene texto de alto contraste en los temas claro, oscuro y sistema. Se separaron los colores semánticos de navegación y tarjetas para evitar que la tinta se convierta en el fondo oscuro al cambiar de tema.

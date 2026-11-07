@@ -231,13 +231,22 @@ func (a *App) paintButton(l uintptr) uintptr {
 	flags := uintptr(dtCenter | dtVCenter | dtSingleLine | dtEndEllipsis)
 	if style.badge != "" {
 		mark := rect{r.Left + 15, r.Top + 16, r.Left + 67, r.Bottom - 16}
-		if !a.paintBrand(item.DC, style.logo, mark.Left, mark.Top-10, 45, bg) {
+		logoSize := int32(45)
+		labelInset := int32(80)
+		// Compact four-column catalog cards must leave enough space for
+		// both distinct YouTube titles without clipping their last word.
+		if r.Right-r.Left < 230 {
+			mark = rect{r.Left + 10, r.Top + 16, r.Left + 54, r.Bottom - 16}
+			logoSize = 38
+			labelInset = 63
+		}
+		if !a.paintBrand(item.DC, style.logo, mark.Left, mark.Top-7, logoSize, bg) {
 			a.paintRounded(item.DC, mark, 15, style.accent, style.accent)
 			call(pSetTextColor, item.DC, uintptr(color(255, 255, 255)))
 			call(pDrawText, item.DC, su(style.badge), ^uintptr(0), uintptr(unsafe.Pointer(&mark)), dtCenter|dtVCenter|dtSingleLine)
 		}
 		call(pSetTextColor, item.DC, uintptr(ink))
-		r.Left += 80
+		r.Left += labelInset
 		flags = uintptr(dtVCenter | dtSingleLine | dtEndEllipsis)
 	}
 	call(pDrawText, item.DC, su(value), ^uintptr(0), uintptr(unsafe.Pointer(&r)), flags)

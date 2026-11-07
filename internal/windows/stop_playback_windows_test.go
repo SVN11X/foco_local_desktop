@@ -24,7 +24,7 @@ func TestBlockedPageContent(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, want := range []string{"Tu tiempo también merece espacio.", "youtube.com", "Detuvimos esta pestaña", "FOCOLOCAL", "Mientras tanto, puedes...", "about:blank"} {
+	for _, want := range []string{"Tu tiempo también merece espacio.", "YouTube · vídeos y navegación", "Detuvimos esta pestaña", "FOCOLOCAL", "Mientras tanto, puedes...", "about:blank"} {
 		if !strings.Contains(string(data), want) {
 			t.Errorf("blocked page missing %q", want)
 		}
@@ -45,5 +45,30 @@ func TestBlockedPageEscapesDomain(t *testing.T) {
 	html := blockedPageHTML(`<script>alert(1)</script>`)
 	if strings.Contains(html, `<script>alert`) || !strings.Contains(html, `&lt;script&gt;`) {
 		t.Fatal("domain markup was not escaped")
+	}
+}
+
+func TestShortsBlockedPageIsUniqueAndSafe(t *testing.T) {
+	cfg := filepath.Join(t.TempDir(), "config.json")
+	normal, err := blockedPagePath(cfg, "youtube.com")
+	if err != nil {
+		t.Fatal(err)
+	}
+	shorts, err := blockedPagePathWithMessage(cfg, "youtube.com/shorts", "El contador se reinicia mañana.")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if normal == shorts || !strings.HasSuffix(shorts, "bloqueado-youtube.com-shorts.html") {
+		t.Fatalf("unsafe or colliding blocked page name: %q", shorts)
+	}
+	data, err := os.ReadFile(shorts)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(data), "YouTube Shorts") {
+		t.Fatal("missing Shorts-specific label")
+	}
+	if _, err := blockedPagePath(cfg, "youtube.com/shorts/../../evil"); err == nil {
+		t.Fatal("unvalidated path accepted")
 	}
 }

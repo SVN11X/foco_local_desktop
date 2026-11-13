@@ -57,6 +57,7 @@ type Store struct {
 	lastSample string
 	lastTick   time.Time
 	dirty      bool
+	leases     []Lease // temporary blocks from a trusted owner. In memory only, never saved.
 }
 
 func Open(path string) (*Store, error) {
@@ -475,6 +476,10 @@ func (s *Store) Observe(host, sampleID string, now time.Time) (blocked string, u
 	s.lastSample = sampleID
 	if s.Data.Paused || host == "" {
 		return "", 0, 0
+	}
+	// A lease blocks without charging any budget. Pause above already won over it.
+	if leased := s.leaseBlockLocked(host, now); leased != "" {
+		return leased, 0, 0
 	}
 	idx := -1
 	for i, r := range s.Data.Rules {

@@ -1,3 +1,11 @@
+## [Sin publicar]
+
+- Motor de leases en `internal/limit`: bloqueos temporales que un propietario local de confianza (por ejemplo Guardian) puede pedir. Solo viven en memoria, nunca se guardan en `config.json` y no sobreviven a un reinicio.
+- Un lease solo puede cubrir un sitio que el usuario ya tiene como regla activa, no puede ser más amplio que esa regla y se detiene al instante si el usuario la desactiva. Pausar FocoLocal también pausa los leases.
+- Cada lease tiene propietario, motivo y expiración de máximo 60 minutos. Es idempotente, admite hasta 20 por propietario y el propietario puede liberarlos todos (liberación de emergencia).
+- Los leases no consumen el presupuesto del usuario y no cambian el funcionamiento de sus reglas. Todavía no hay IPC: este cambio no se puede invocar desde fuera de la aplicación.
+- Pruebas de expiración, idempotencia, persistencia, cobertura, pausa, concurrencia y presupuesto intacto sin leases.
+
 ## [0.3.3] - 2026-11-06
 
 - Nuevos presupuestos independientes «YouTube Shorts» y «YouTube · vídeos»; la detección por URL distingue `/shorts/` de `/watch` sin registrar identificadores de vídeo ni consultas.
